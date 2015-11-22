@@ -19,3 +19,30 @@ Some of the features of Apparatchik are:
 
 Imagine deploying your typical Rails or Node web application that contains multiple dependencies such as Database, Memcached or ElasticSearch in production by just PUTing one JSON file to a RESTful endpoint. There is no need to imagine that anymore - you can do it by using Aparatchik.
 
+## RESTful interface
+
+Apparatchik offers a very simple API for starting, monitoring and removing appllications.
+
+### Terminology
+
+
+#### Application
+Application is self contained unit of software. Application usually has few to none external dependencies and is able to run on its own, independent on where it is deployed. Each Application consists of at least one goal, but usually several goals that form an directed graph towards the main goal of the application.
+
+A simple example of an application would be a Ruby on Rails goal that runs after database create and migrate goals and depends on a PostgreSQL database.
+
+### Goal
+Goal is the atomic part of an application. Goal represents one Docker container. In Docker-Compose terms, goal is a Service.
+Goals can depend on each other either by being linked or by declaring **run_after** dependency to another goal.
+Goals are described in a very similar structure as in Docker-Compose with the difference that the structure encoded as JSON object.
+
+### Main Goal
+Main goals is the goal that should be either running or succesfully executed (exited with the status 0) for the application to be running.
+Once an application is created, Apparatchik will try to execute the main goal by starting it.
+If the main goal depends on other goals, Apparatchick will recursively either start (in the case of a linked Goal) or execute and wait for a successful termination (**run_after** dependencies) before the main Goal is being started.
+
+
+
+
+
+
