@@ -1,0 +1,116 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"path": "github.com/djimenez/iconv-go",
+			"revision": "5f6a5a4f0011195c0147545149ad54f4adb54757",
+			"revisionTime": "2013-12-19T12:13:16-05:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/Sirupsen/logrus",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/opts",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/archive",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/fileutils",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/homedir",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/ioutils",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/parsers",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/pools",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/promise",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/stdcopy",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/system",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/ulimit",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/pkg/units",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/docker/docker/volume",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/fsouza/go-dockerclient/external/github.com/opencontainers/runc/libcontainer/user",
+			"revision": "1399676f53e6ccf46e0bf00751b21bed329bc60e",
+			"revisionTime": "2015-10-05T18:16:37-03:00"
+		},
+		{
+			"path": "github.com/gorilla/context",
+			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
+			"revisionTime": "2015-08-19T22:12:45-07:00"
+		},
+		{
+			"path": "github.com/gorilla/websocket",
+			"revision": "361d4c0ffd78338ebe0a9e6320cdbe115d7dc026",
+			"revisionTime": "2015-11-02T11:10:34-08:00"
+		},
+		{
+			"path": "github.com/julienschmidt/httprouter",
+			"revision": "77a895ad01ebc98a4dc95d8355bc825ce80a56f6",
+			"revisionTime": "2015-10-14T00:55:20+02:00"
+		},
+		{
+			"path": "github.com/keep94/weblogs",
+			"revision": "e881c3b62605423ef1d556d234afb8e07ff225f6",
+			"revisionTime": "2014-04-30T06:19:29-07:00"
+		},
+		{
+			"path": "github.com/keep94/weblogs/loggers",
+			"revision": "e881c3b62605423ef1d556d234afb8e07ff225f6",
+			"revisionTime": "2014-04-30T06:19:29-07:00"
+		}
+	]
+}

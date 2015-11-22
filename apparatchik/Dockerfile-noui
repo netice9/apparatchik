@@ -1,0 +1,14 @@
+FROM golang:1.5.1
+
+RUN mkdir -p /go/src/app
+WORKDIR /go/src/app
+
+# this will ideally be built by the ONBUILD below ;)
+CMD ["go-wrapper", "run"]
+
+COPY . /go/src/app
+RUN mv external /go/src
+# RUN go-wrapper download
+RUN go-wrapper install
+EXPOSE 8080
+VOLUME ["/applications"]

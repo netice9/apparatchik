@@ -1,0 +1,30 @@
+apparatchik:
+  build: apparatchik
+  volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+  ports:
+    - "8080:8080"
+  container_name: apparatchik
+test:
+  build: integration-tests
+  command: -c 'bundle exec cucumber'
+  links:
+    - apparatchik
+  volumes:
+    - ./integration-tests:/tests
+    - "/var/run/docker.sock:/var/run/docker.sock"
+testwip:
+  build: integration-tests
+  command: -c 'bundle exec cucumber --tags @wip'
+  links:
+    - apparatchik
+  volumes:
+    - ./integration-tests:/tests
+    - "/var/run/docker.sock:/var/run/docker.sock"
+testui:
+  build: ui-test
+  command: cucumber
+  links:
+    - apparatchik
+  volumes:
+    - ./ui-test:/tests

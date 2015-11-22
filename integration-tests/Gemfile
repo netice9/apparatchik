@@ -1,0 +1,9 @@
+# A sample Gemfile
+source "https://rubygems.org"
+
+gem 'cucumber'
+gem 'httparty'
+gem 'rspec-expectations'
+gem 'pry'
+gem 'pry-byebug'
+gem 'docker-api', :require => 'docker'
