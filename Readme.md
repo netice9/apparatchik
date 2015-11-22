@@ -4,8 +4,8 @@
 
 ## What is Apparatchik?
 
-Apparatchick is a Docker-Compose-like RESTful service running as a Docker container and so much more.
-Some of the features of Apparatchick are:
+Apparatchik is a Docker-Compose-like RESTful service running as a Docker container and so much more.
+Some of the features of Apparatchik are:
 
 - RESTful interface to deploy (PUT), inspect (GET), and remove (DELETE) applications.
 - User friendy browser UI (React.js application) utilizing the RESTful interface, making deployment and management of applications a breeze.
@@ -16,5 +16,5 @@ Some of the features of Apparatchick are:
 
 ## Why should I use Apparatchik?
 
-Imagine deploying your typical Rails or Node web application that contains multiple dependencies such as Database, Memcached or ElasticSearch in production by just PUTing one JSON file to a RESTful endpoint. There is no need to imagine that anymore - you can do it by using Aparatchick.
+Imagine deploying your typical Rails or Node web application that contains multiple dependencies such as Database, Memcached or ElasticSearch in production by just PUTing one JSON file to a RESTful endpoint. There is no need to imagine that anymore - you can do it by using Aparatchik.
 
