@@ -10,5 +10,6 @@ Some of the features of Apparatchick are:
 - RESTful interface to deploy (PUT), inspect (GET), and remove (DELETE) applications.
 - User friendy browser UI (React.js application) untilizing the RESTful interface, making deployment and management of applications a breeze.
 - Extension of Docker-Compose model with **run_after** dependency model making it possible to have temporal dependency in the order of running containers.
+- Adds smart restarting of all components depending on a crashed component - no need to check /etc/hosts for change of IP addresses of services.
 - Implemented completely in Golang on the server side to minimize resource consumption.
 
