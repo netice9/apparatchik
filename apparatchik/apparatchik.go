@@ -118,7 +118,7 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	command := r.FormValue("command")
 	if command == "" {
-		command = "/bin/bash -i"
+		command = "/bin/bash"
 	}
 
 	exec, err := dockerClient.CreateExec(docker.CreateExecOptions{
