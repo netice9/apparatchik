@@ -41,6 +41,13 @@ Main goals is the goal that should be either running or succesfully executed (ex
 Once an application is created, Apparatchik will try to execute the main goal by starting it.
 If the main goal depends on other goals, Apparatchick will recursively either start (in the case of a linked Goal) or execute and wait for a successful termination (**run_after** dependencies) before the main Goal is being started.
 
+### Endpoints
+
+#### `GET /api/v1.0/applications`
+Returns an JSON array containing names of all currently running or starting applications
+
+#### `GET /api/v1.0/applications/:applicationName`
+Returns an JSON array containing names of all currently running or starting applications
 
 
 
