@@ -18,7 +18,7 @@ module.exports = React.createClass({
     node.scrollTop = node.scrollHeight;
   },
   updateLogs: function() {
-    jq.get("/applications/"+this.props.applicationName+"/"+this.props.goalName+"/logs", function(result) {
+    jq.get("/api/v1.0/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/logs", function(result) {
       this.setState({log: result});
     }.bind(this));
   },

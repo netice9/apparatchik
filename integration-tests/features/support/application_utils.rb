@@ -1,6 +1,6 @@
 def create_application( request )
   @app_name = SecureRandom.uuid
-  @response = HTTParty.put("http://apparatchik:8080/applications/#{@app_name}",
+  @response = HTTParty.put("http://apparatchik:8080/api/v1.0/applications/#{@app_name}",
     body: request.to_json,
     headers: {
         'Content-Type' => 'application/json',
@@ -20,7 +20,7 @@ def create_application( request )
 end
 
 def get_application
-  HTTParty.get("http://apparatchik:8080/applications/#{@app_name}",
+  HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}",
     headers: {
         'Accept' => 'application/json'
     }
@@ -28,7 +28,7 @@ def get_application
 end
 
 def inspect_goal(goal_name)
-  HTTParty.get("http://apparatchik:8080/applications/#{@app_name}/#{goal_name}/inspect",
+  HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}/goals/#{goal_name}/inspect",
     headers: {
         'Accept' => 'application/json'
     }
@@ -36,7 +36,7 @@ def inspect_goal(goal_name)
 end
 
 def transition_log(goal_name)
-  HTTParty.get("http://apparatchik:8080/applications/#{@app_name}/#{goal_name}/transition_log",
+  HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}/goals/#{goal_name}/transition_log",
     headers: {
         'Accept' => 'application/json'
     }
@@ -45,7 +45,7 @@ end
 
 
 def goal_stats(goal_name)
-  HTTParty.get("http://apparatchik:8080/applications/#{@app_name}/#{goal_name}/stats",
+  HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}/goals/#{goal_name}/stats",
     headers: {
         'Accept' => 'application/json'
     }
@@ -53,7 +53,7 @@ def goal_stats(goal_name)
 end
 
 def goal_current_stats(goal_name)
-  HTTParty.get("http://apparatchik:8080/applications/#{@app_name}/#{goal_name}/current_stats",
+  HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}/goals/#{goal_name}/current_stats",
     headers: {
         'Accept' => 'application/json'
     }

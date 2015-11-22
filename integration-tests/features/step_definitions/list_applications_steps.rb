@@ -2,7 +2,7 @@ Given(/^there are no applications$/) do
 end
 
 When(/^I list the applications$/) do
-  response = HTTParty.get("http://apparatchik:8080/applications")
+  response = HTTParty.get("http://apparatchik:8080/api/v1.0/applications")
   expect(response.code).to eq(200)
   @applications = response.to_a
 end

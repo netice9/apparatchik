@@ -14,7 +14,7 @@ module.exports = React.createClass({
 
     var location = window.location;
 
-    var consoleSocket = new WebSocket("ws:"+location.host+"/applications/"+this.props.applicationName+"/"+this.props.goalName+"/exec")
+    var consoleSocket = new WebSocket("ws:"+location.host+"/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/exec")
 
     if (consoleSocket) {
 

@@ -20,7 +20,7 @@ var App = React.createClass({
     return { applications: [] };
   },
   componentDidMount: function() {
-    jq.get("/applications", function(result) {
+    jq.get("/api/v1.0/applications", function(result) {
         this.setState({
           applications: result
         });
@@ -68,7 +68,7 @@ var NewApplication = React.createClass({
     reader.onload = function(theFile) {
       var text = reader.result;
       jq.ajax({
-        url: "/applications/"+that.state.applicationName,
+        url: "/api/v1.0/applications/"+that.state.applicationName,
         data: text,
         method: "PUT",
         dataType: "json",

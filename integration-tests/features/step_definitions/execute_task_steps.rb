@@ -36,7 +36,7 @@ Then(/^the exit code of the task should be (\d+)$/) do |expected_code|
 end
 
 Then(/^I should be able to retreive the logs of the task$/) do
-  response = HTTParty.get("http://apparatchik:8080/applications/#{@app_name}/task1/logs")
+  response = HTTParty.get("http://apparatchik:8080/api/v1.0/applications/#{@app_name}/goals/task1/logs")
   expect(response.code).to eq(200)
   expect(response.headers['content-type']).to eq('text/plain')
   expect(response.body).to eq("executed\n")
@@ -113,7 +113,7 @@ Then(/^the second task should be waiting for successful execution of the first t
 end
 
 When(/^I delete the application$/) do
-  response = HTTParty.delete("http://apparatchik:8080/applications/#{@app_name}")
+  response = HTTParty.delete("http://apparatchik:8080/api/v1.0/applications/#{@app_name}")
   expect(response.code).to eq(204)
 end
 

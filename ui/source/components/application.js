@@ -63,7 +63,7 @@ var Application = React.createClass({
   delete() {
     var that = this;
     jq.ajax({
-      url: "/applications/"+this.props.params.applicationName,
+      url: "/api/v1.0/applications/"+this.props.params.applicationName,
       type: 'DELETE',
       success: function() {
         that.props.history.pushState(null,'/');
@@ -81,7 +81,7 @@ var Application = React.createClass({
     this.setState(update(this.state, {showModal: {$set: true}} ));
   },
   updateApplication: function() {
-    jq.get("/applications/"+this.props.params.applicationName, function(result) {
+    jq.get("/api/v1.0/applications/"+this.props.params.applicationName, function(result) {
       this.setState(update(this.state, {application: {$set: result}}));
     }.bind(this));
   },

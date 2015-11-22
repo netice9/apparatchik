@@ -65,19 +65,18 @@ func startHttpServer(dockerClient *docker.Client) {
 	}
 
 	router := httprouter.New()
-	router.PUT("/applications/:applicationName", CreateApplication)
-	router.DELETE("/applications/:applicationName", DeleteApplication)
+	router.PUT("/api/v1.0/applications/:applicationName", CreateApplication)
+	router.DELETE("/api/v1.0/applications/:applicationName", DeleteApplication)
 
-	// router.GET("/", RedirectToIndex)
+	router.GET("/api/v1.0/applications", GetApplications)
+	router.GET("/api/v1.0/applications/:applicationName", GetApplication)
 
-	router.GET("/applications", GetApplications)
-	router.GET("/applications/:applicationName", GetApplication)
-	router.GET("/applications/:applicationName/:goalName/logs", GetGoalLogs)
-	router.GET("/applications/:applicationName/:goalName/transition_log", GetGoalTransitionLog)
-	router.GET("/applications/:applicationName/:goalName/stats", GetGoalStats)
-	router.GET("/applications/:applicationName/:goalName/current_stats", GetGoalCurrentStats)
-	router.GET("/applications/:applicationName/:goalName/inspect", GetGoalInspect)
-	router.GET("/applications/:applicationName/:goalName/exec", ExecSocket)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/logs", GetGoalLogs)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/transition_log", GetGoalTransitionLog)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/stats", GetGoalStats)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/current_stats", GetGoalCurrentStats)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", GetGoalInspect)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", ExecSocket)
 	router.NotFound = http.FileServer(http.Dir("public"))
 
 	handler := context.ClearHandler(NewAuthHandler(router))

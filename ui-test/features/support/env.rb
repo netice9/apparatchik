@@ -13,9 +13,9 @@ Before do
     @connected = true
   end
 
-  applications = HTTParty.get("http://apparatchik:8080/applications").to_a
+  applications = HTTParty.get("http://apparatchik:8080/api/v1.0/applications").to_a
   applications.each do |application_name|
-    HTTParty.delete("http://apparatchik:8080/applications/#{application_name}")
+    HTTParty.delete("http://apparatchik:8080/api/v1.0/applications/#{application_name}")
   end
 
 end

@@ -157,15 +157,6 @@ Then(/^AttachStdin should be set$/) do
   expect(inspect_goal('task1').to_h['Config']['AttachStdin']).to eq(true)
 end
 
-# Then(/^AttachStdout should be set$/) do
-#   expect(inspect_goal('task1').to_h['Config']['AttachStdout']).to eq(true)
-# end
-
-# Then(/^AttachStderr should be set$/) do
-#   expect(inspect_goal('task1').to_h['Config']['AttachStderr']).to eq(true)
-# end
-
-
 Then(/^Tty should be set$/) do
   expect(inspect_goal('task1').to_h['Config']['Tty']).to eq(true)
 end
