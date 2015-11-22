@@ -7,7 +7,7 @@ var Panel = require('react-bootstrap').Panel;
 
 module.exports = React.createClass({
   updateTransitionTimeline: function() {
-    jq.get("/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/transition_log", {since:  this.last_time} , function(result) {
+    jq.get("/api/v1.0/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/transition_log", {since:  this.last_time} , function(result) {
 
 
       var data =[];

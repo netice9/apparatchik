@@ -7,7 +7,7 @@ var Panel = require('react-bootstrap').Panel;
 
 module.exports = React.createClass({
   updateStats: function() {
-    jq.get("/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/stats", {since:  this.last_time} , function(result) {
+    jq.get("/api/v1.0/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/stats", {since:  this.last_time} , function(result) {
       this.cpuData.update(_.map(result.cpu_stats, function(stat) { return { id: Date.parse(stat.time), x: stat.time, y: stat.value /10000000 } } ), "api");
       var toRemove = this.cpuData.length - 120 + 1
       for (var i=0; i<toRemove; i++) {
