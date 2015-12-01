@@ -47,8 +47,39 @@ If the main goal depends on other goals, Apparatchick will recursively either st
 Returns an JSON array containing names of all currently running or starting applications
 
 #### `GET /api/v1.0/applications/:applicationName`
-Returns an JSON array containing names of all currently running or starting applications
+Returns an JSON object describing the state of an application. The object has a following format:
 
+```json
+{
+  "name": "app1",
+  "goals": {
+    "dbsetup": {
+      "name": "dbsetup",
+      "status": "terminated",
+      "exit_code": 0
+    },
+    "migrate": {
+      "name": "migrate",
+      "status": "terminated",
+      "exit_code": 0
+    },
+    "pg": {
+      "name": "pg",
+      "status": "running"
+    },
+    "rails": {
+      "name": "rails",
+      "status": "running"
+    }
+  },
+  "main_goal": "rails"
+}
+```
+| Name      | Description                               |
+| ----------| -----------                               |
+| name      | Name of the application                   |
+| goals     | Object describing state of each goal      |
+| main_goal | Name of the main goal for the application |
 
 
 
