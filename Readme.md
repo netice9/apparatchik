@@ -74,13 +74,23 @@ Returns an JSON object describing the state of an application. The object has a 
   },
   "main_goal": "rails"
 }
+
 ```
+
+The object always has following properties:
+
 | Name      | Description                               |
 | ----------| -----------                               |
 | name      | Name of the application                   |
 | goals     | Object describing state of each goal      |
 | main_goal | Name of the main goal for the application |
 
+Each goal state describing object can have following properties:
 
+| Name      | Description                                                                   |
+| ----------| -----------                                                                   |
+| name      | Name of the goal                                                              |
+| status    | Object describing state of each goal                                          |
+| exit_code | Exit code of the goal process. Only set if the status is terminated or failed |
 
 
