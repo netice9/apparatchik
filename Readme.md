@@ -46,6 +46,91 @@ If the main goal depends on other goals, Apparatchick will recursively either st
 #### `GET /api/v1.0/applications`
 Returns an JSON array containing names of all currently running or starting applications
 
+#### `PUT /api/v1.0/applications/:applicationName`
+
+Creates an application. The body of the request is an application descriptor.
+Application descriptor is be a JSON object describing the application in the following format:
+
+| Name      | Description                                                                                |
+| ----------| -----------                                                                                |
+| goals     | Object describing all goals. Key is the name of the goal and value is the goal description |
+| main_goal | Name of the main goal for the application. Apparatchick will try to start this goal, but will first make sure that linked goals and run_after goals are started first |
+
+
+For example, an application descriptor for a Rails application that uses Postgres DB and needs to run db:setup and db:migrate command before starting would look like this:
+
+```json
+{
+  "goals": {
+    "dbsetup": {
+      "auth_config": {
+        "username": "your_repo_username",
+        "password": "youre_repo_password"
+      },
+      "image": "your-repo.com:port/user/rails_image_name:tag",
+      "command": [
+        "rake",
+        "db:setup"
+      ],
+      "links": [
+        "pg"
+      ],
+      "smart_restart": true
+    },
+    "migrate": {
+      "auth_config": {
+        "username": "your_repo_username",
+        "password": "youre_repo_password"
+      },
+      "image": "your-repo.com:port/user/rails_image_name:tag",
+      "command": [
+        "rake",
+        "db:migrate"
+      ],
+      "run_after": [
+        "dbsetup"
+      ],
+      "links": [
+        "pg"
+      ],
+      "smart_restart": true
+    },
+    "pg": {
+      "image": "postgres:9.4.5",
+      "environment": {
+        "POSTGRES_USER": "database_username",
+        "POSTGRES_PASSWORD": "database_password"
+      },
+      "smart_restart": true
+    },
+    "rails": {
+      "auth_config": {
+        "username": "your_repo_username",
+        "password": "youre_repo_password"
+      },
+      "image": "your-repo.com:port/user/rails_image_name:tag",
+      "command": [
+        "rails",
+        "server",
+        "-b",
+        "0.0.0.0"
+      ],
+      "run_after": [
+        "migrate"
+      ],
+      "links": [
+        "pg"
+      ],
+      "ports": [
+        "3000:3000"
+      ],
+      "smart_restart": true
+    }
+  },
+  "main_goal": "rails"
+}
+```
+
 #### `GET /api/v1.0/applications/:applicationName`
 Returns an JSON object describing the state of an application. The object has a following format:
 
