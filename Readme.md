@@ -19,6 +19,29 @@ Some of the features of Apparatchik are:
 
 Imagine deploying your typical Rails or Node web application that contains multiple dependencies such as Database, Memcached or ElasticSearch in production by just PUTing one JSON file to a RESTful endpoint. There is no need to imagine that anymore - you can do it by using Aparatchik.
 
+
+## Running
+
+Apparatchick is meant to run as a Docker container. It will listen on the port 8080 for the HTTP requests and use volume with path '/applications' to store state.
+
+The recomended way of startin Aparatchick is:
+
+```bash
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /applications:/applications -p 8080:8080 --name=apparatchik -d netice9/apparatchik:0.0.1
+```
+
+If you would like to add Basic Auth to the HTTP, set AUTH_USERNAME and AUTH_PASSWORD environment variables when starting Aparatchick:
+
+```bash
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /applications:/applications -p 8080:8080 --name=apparatchik -e AUTH_USERNAME=admin -e AUTH_PASSWORD=adminspassword -d netice9/apparatchik:0.0.1
+```
+
+## Web interface
+
+Apparatchick comes with a very useful Web interface written in React.js (yes, it is an JS application and won't work without a modern browser).
+
+The web interface will allow you to create new applications (by uploading an application descriptor - see API for details), stop (delete) a running application and monitor a running application. To get to the web interface just enter the url pointing to the HTTP interface of Apparatchick in your browser (e.g. http://your.docker.host.com:8080/)
+
 ## Terminology
 
 ### Application
@@ -185,4 +208,6 @@ Each goal state describing object can have following properties:
 | status    | Object describing state of each goal                                          |
 | exit_code | Exit code of the goal process. Only set if the status is terminated or failed |
 
+
+...
 
