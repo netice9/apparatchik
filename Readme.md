@@ -56,6 +56,13 @@ Application descriptor is be a JSON object describing the application in the fol
 | goals     | Object describing all goals. Key is the name of the goal and value is the goal description |
 | main_goal | Name of the main goal for the application. Apparatchick will try to start this goal, but will first make sure that linked goals and run_after goals are started first |
 
+Each goal description has more or less structure of service description of Docker-Compose, with following additional parameters:
+
+| Name      | Description                                                                                |
+| ----------| -----------                                                                                |
+| auth_config  | Authentication used to fetch Image from the repo. Not needed when image is in public repository. JSON object with keys "username" and "password"  |
+| smart_restart | Boolean value. When true, Apparatchik will restart the goal if it exits with a code != 0. Also all goals depending on this goal will be started |
+| run_after | List of goal names that need to succesfully terminate before this goal can start. This is extension of the service model of Docker Compose to allow for temporal execution dependency of things like set up scripts |
 
 For example, an application descriptor for a Rails application that uses Postgres DB and needs to run db:setup and db:migrate command before starting would look like this:
 
