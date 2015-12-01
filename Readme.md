@@ -60,7 +60,7 @@ Each goal description has more or less structure of service description of Docke
 
 | Name      | Description                                                                                |
 | ----------| -----------                                                                                |
-| auth_config  | Authentication used to fetch Image from the repo. Not needed when image is in public repository. JSON object with keys "username" and "password"  |
+| auth_config  | Authentication used to download Image from the registry. Not needed when image is in a public repository. JSON object with keys "username" and "password"  |
 | smart_restart | Boolean value. When true, Apparatchik will restart the goal if it exits with a code != 0. Also all goals depending on this goal will be started |
 | run_after | List of goal names that need to succesfully terminate before this goal can start. This is extension of the service model of Docker Compose to allow for temporal execution dependency of things like set up scripts |
 
