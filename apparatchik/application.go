@@ -10,11 +10,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 )
 
-type ApplicationConfiguration struct {
-	Goals    map[string]GoalConfiguration `json:"goals"`
-	MainGoal string                       `json:"main_goal"`
-}
-
 type Application struct {
 	Name                string
 	Goals               map[string]*Goal
