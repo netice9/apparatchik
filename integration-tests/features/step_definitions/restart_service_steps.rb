@@ -87,7 +87,7 @@ Given(/^I have a service depending on a service that will terminate and both ser
 end
 
 Then(/^the second service should be restarted$/) do
-  timed_retry do
+  timed_retry sleep: 0.5 do
     expect(transition_log('service2').map{|x| x['status']}.select{|x| ['failed', 'running'].include?(x)}).to eq(['running','failed', 'running'])
   end
 end

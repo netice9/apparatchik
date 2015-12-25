@@ -24,7 +24,7 @@ When(/^I start an application with a service linked to another service in the sa
       service1: {
         image: "alpine:3.2",
         command: ["/bin/sh","-c","sleep 999999"],
-        container_name: "test_container"
+        container_name: "test_container2"
       },
       service2: {
         image: "alpine:3.2",
@@ -38,7 +38,7 @@ When(/^I start an application with a service linked to another service in the sa
 end
 
 Then(/^the second service should be running$/) do
-  timed_retry do
+  timed_retry retries: 20 do
     response = get_application
     expect(response.code).to eq(200)
     expect(response.to_h["goals"]["service2"]["status"]).to eq("running")
