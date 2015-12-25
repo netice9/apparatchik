@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/fsouza/go-dockerclient"
 	"io"
 	"io/ioutil"
 	"os"
 	"time"
+
+	"github.com/fsouza/go-dockerclient"
 )
 
 type ApplicationConfiguration struct {
@@ -130,7 +131,7 @@ func (app *Application) startGoals() {
 	app.Goals[app.MainGoal].Start()
 }
 
-func NewApplication(applicationName string, applicationConfiguration ApplicationConfiguration, dockerClient *docker.Client) *Application {
+func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *docker.Client) *Application {
 
 	fileName := "/applications/" + applicationName + ".json"
 

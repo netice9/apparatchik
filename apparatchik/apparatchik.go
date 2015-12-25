@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,25 +17,22 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-var applications = Applications{}
-var dockerClient *docker.Client = nil
+// var applications = Applications{}
+// var dockerClient *docker.Client = nil
+//
+
+var apparatchick = &Apparatchik{}
 
 func main() {
 	endpoint := "unix:///var/run/docker.sock"
-	dockerClient, _ = docker.NewClient(endpoint)
+	dockerClient, err := docker.NewClient(endpoint)
+	// dockerClient, err := docker.NewClientFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	startHttpServer(dockerClient)
-}
-
-type Applications map[string]*Application
-
-type ErrorResponse struct {
-	Reason string `json:"reason"`
-}
-
-func startHttpServer(dockerClient *docker.Client) {
-
-	// applications := make(Applications)
+	apparatchick.applications = map[string]*Application{}
+	apparatchick.dockerClient = dockerClient
 
 	files, err := ioutil.ReadDir("/applications")
 
@@ -57,13 +55,51 @@ func startHttpServer(dockerClient *docker.Client) {
 				panic(err)
 			}
 
-			app := NewApplication(applicationName, config, dockerClient)
-
-			applications[applicationName] = app
+			apparatchick.NewApplication(applicationName, &config)
 
 		}
 
 	}
+
+	startHttpServer()
+}
+
+type Apparatchik struct {
+	applications map[string]*Application
+	dockerClient *docker.Client
+}
+
+func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*string, error) {
+
+	// TODO locking
+
+	application, ok := ap.applications[applicatioName]
+	if !ok {
+		return nil, errors.New("Application not found")
+	}
+	goal, ok := application.Goals[goalName]
+	if !ok {
+		return nil, errors.New("Goal not found")
+	}
+	return goal.ContainerId, nil
+}
+
+func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*Application, error) {
+
+	// TODO handle application name collision, locking
+
+	application := NewApplication(name, config, ap.dockerClient)
+	ap.applications[name] = application
+	return application, nil
+}
+
+type ErrorResponse struct {
+	Reason string `json:"reason"`
+}
+
+func startHttpServer() {
+
+	// applications := make(Applications)
 
 	router := httprouter.New()
 	router.PUT("/api/v1.0/applications/:applicationName", CreateApplication)
@@ -116,20 +152,26 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	containerId := applications[applicationName].Goals[goalName].ContainerId
+
+	containerID, err := apparatchick.GetContainerIDForGoal(applicationName, goalName)
+
+	if err != nil {
+		log.Panic(err)
+	}
 
 	command := r.FormValue("command")
+
 	if command == "" {
 		command = "/bin/sh"
 	}
 
-	exec, err := dockerClient.CreateExec(docker.CreateExecOptions{
+	exec, err := apparatchick.dockerClient.CreateExec(docker.CreateExecOptions{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true,
 		Cmd:          []string{command},
-		Container:    *containerId,
+		Container:    *containerID,
 	})
 
 	if err != nil {
@@ -171,7 +213,8 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	}()
 
-	dockerClient.StartExec(exec.ID, docker.StartExecOptions{
+	// TODO encapsulate into Apparatchik
+	apparatchick.dockerClient.StartExec(exec.ID, docker.StartExecOptions{
 		Detach:       false,
 		Tty:          true,
 		InputStream:  stdinPipeReader,
@@ -190,33 +233,53 @@ func RedirectToIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	http.Redirect(w, r, "/index.html", 301)
 }
 
+func (ap *Apparatchik) Terminate(applicationName string) error {
+	application, ok := ap.applications[applicationName]
+	if !ok {
+		return errors.New("Could not find Application")
+	}
+	application.Terminate()
+	delete(ap.applications, applicationName)
+	return nil
+}
+
 func DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	applications[applicationName].Terminate()
-	delete(applications, applicationName)
+	// TODO handle error case
+	apparatchick.Terminate(applicationName)
 	w.WriteHeader(204)
 }
 
-func GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	keys := []string{}
-
-	i := 0
-	for k, _ := range applications {
-		keys = append(keys, k)
-		i++
+func (ap *Apparatchik) ApplicatioNames() []string {
+	names := []string{}
+	for k, _ := range ap.applications {
+		names = append(names, k)
 	}
+	return names
+}
+
+func GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(keys); err != nil {
+	if err := json.NewEncoder(w).Encode(apparatchick.ApplicatioNames()); err != nil {
 		panic(err)
 	}
 }
 
+func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
+	// TODO locking
+	application, ok := ap.applications[name]
+	if !ok {
+		return nil, errors.New("Application not found")
+	}
+	return application, nil
+}
+
 func GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	application, ok := applications[applicationName]
+	application, err := apparatchick.ApplicationByName(applicationName)
 
 	w.Header().Set("Content-Type", "application/json")
-	if ok {
+	if err == nil {
 		status := application.Status()
 		w.WriteHeader(200)
 		if err := json.NewEncoder(w).Encode(status); err != nil {
@@ -236,13 +299,17 @@ func GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	goalName := ps.ByName("goalName")
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(200)
-	applications[applicationName].Logs(goalName, w)
+	// TODO handle error
+	application, _ := apparatchick.ApplicationByName(applicationName)
+	application.Logs(goalName, w)
 }
 
 func GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	transitionLog, err := applications[applicationName].TransitionLog(goalName)
+	// TODO handle error
+	application, _ := apparatchick.ApplicationByName(applicationName)
+	transitionLog, err := application.TransitionLog(goalName)
 	if err != nil {
 		panic(err)
 	}
@@ -272,7 +339,10 @@ func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 		sinceTime = time.Time{}
 	}
 
-	stats, err := applications[applicationName].Stats(goalName, sinceTime)
+	// TODO handle error
+	application, _ := apparatchick.ApplicationByName(applicationName)
+
+	stats, err := application.Stats(goalName, sinceTime)
 	if err != nil {
 		panic(err)
 	}
@@ -294,7 +364,10 @@ func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 func GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	stats, err := applications[applicationName].CurrentStats(goalName)
+	// TODO handle error
+	application, _ := apparatchick.ApplicationByName(applicationName)
+
+	stats, err := application.CurrentStats(goalName)
 	if err != nil {
 		panic(err)
 	}
@@ -317,7 +390,11 @@ func GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.P
 func GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	container, err := applications[applicationName].Inspect(goalName)
+
+	// TODO handle error
+	application, _ := apparatchick.ApplicationByName(applicationName)
+
+	container, err := application.Inspect(goalName)
 	if err != nil {
 		panic(err)
 	}
@@ -341,7 +418,10 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	applicationName := ps.ByName("applicationName")
 	decoder := json.NewDecoder(r.Body)
 
-	if _, exists := applications[applicationName]; exists {
+	// TODO handle error
+	_, err := apparatchick.ApplicationByName(applicationName)
+
+	if err == nil {
 		w.WriteHeader(409)
 		e := ErrorResponse{Reason: "application already exists"}
 		if err := json.NewEncoder(w).Encode(e); err != nil {
@@ -356,9 +436,11 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 			panic("can't parse")
 		}
 
-		app := NewApplication(applicationName, applicationConfiguration, dockerClient)
+		log.Println("about to create", applicationName, applicationConfiguration)
+		// TODO handle error to simplify above if
+		app, _ := apparatchick.NewApplication(applicationName, &applicationConfiguration)
 
-		applications[applicationName] = app
+		log.Println("created")
 
 		status := app.Status()
 
