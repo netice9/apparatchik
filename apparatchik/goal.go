@@ -3,11 +3,12 @@ package main
 import (
 	// "errors"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fsouza/go-dockerclient"
 )
 
 type TransitionLogEntry struct {
@@ -662,7 +663,12 @@ func (goal *Goal) Terminate() {
 }
 
 func (goal *Goal) FetchImage() {
-	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{All: true})
+
+	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
+
+	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{
+		Filter: repo,
+	})
 
 	if err != nil {
 		errorString := err.Error()
@@ -677,7 +683,6 @@ func (goal *Goal) FetchImage() {
 		}
 	}
 
-	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
 	opts := docker.PullImageOptions{
 		Repository: repo,
 		Tag:        tag,
@@ -690,7 +695,7 @@ func (goal *Goal) FetchImage() {
 		goal.FetchImageFinished <- &errorString
 		return
 	} else {
-		images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{All: true})
+		images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{Filter: repo})
 
 		if err != nil {
 			errorString := err.Error()
