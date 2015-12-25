@@ -2,17 +2,18 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/djimenez/iconv-go"
-	"github.com/fsouza/go-dockerclient"
-	"github.com/gorilla/context"
-	"github.com/gorilla/websocket"
-	"github.com/julienschmidt/httprouter"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/djimenez/iconv-go"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/gorilla/context"
+	"github.com/gorilla/websocket"
+	"github.com/julienschmidt/httprouter"
 )
 
 var applications = Applications{}
@@ -98,13 +99,14 @@ func (conn WSReaderWriter) Write(p []byte) (n int, err error) {
 	output, err := iconv.ConvertString(string(p), "ISO-8859-1", "utf-8")
 
 	if err != nil {
-		panic(err)
+		log.Println("WSReaderWriter", err)
+		return 0, err
 	}
 
 	err = conn.WriteMessage(websocket.TextMessage, []byte(output))
 
 	if err != nil {
-		panic(err)
+		log.Println("WSReaderWriter", err)
 	}
 
 	return len(p), err
@@ -118,7 +120,7 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	command := r.FormValue("command")
 	if command == "" {
-		command = "/bin/bash"
+		command = "/bin/sh"
 	}
 
 	exec, err := dockerClient.CreateExec(docker.CreateExecOptions{
@@ -155,12 +157,12 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 				_, message, err := conn.ReadMessage()
 
 				if err != nil {
-					log.Fatal(err)
+					log.Println("WS Copy", err)
 					return
 				}
 				_, err = stdinPipeWriter.Write(message)
 				if err != nil {
-					log.Fatal(err)
+					log.Println("WS Copy", err)
 					return
 				}
 			}
