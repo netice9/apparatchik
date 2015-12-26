@@ -7,7 +7,7 @@ var Panel = require('react-bootstrap').Panel;
 
 module.exports = React.createClass({
   updateTransitionTimeline: function() {
-    jq.get("/api/v1.0/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/transition_log", {since:  this.last_time} , function(result) {
+    jq.get("/api/v1.0/applications/"+this.props.applicationName+"/goals/"+this.props.goalName+"/transition_log" , function(result) {
 
 
       var data =[];
@@ -24,13 +24,16 @@ module.exports = React.createClass({
 
       this.timelineData.update(data, "api");
       this.timelineData.flush();
+      if (!this.visStarted) {
+        this.createVis();
+        this.visStarted = true;
+      }
       this.timeline.fit({animation: false});
-
     }.bind(this));
   },
   componentDidMount: function() {
     this.timelineData = new vis.DataSet({queue: true});
-    this.createVis();
+
     this.updateTransitionTimeline();
     this.timer = setInterval(this.updateTransitionTimeline, 1000);
   },

@@ -9,6 +9,7 @@ var Button = require('react-bootstrap').Button;
 var Panel = require('react-bootstrap').Panel;
 var ListGroup = require('react-bootstrap').ListGroup;
 var ListGroupItem = require('react-bootstrap').ListGroupItem;
+var Alert = require('react-bootstrap').Alert;
 var _ = require('lodash');
 var jq = require('jquery');
 var Application = require('./components/application');
@@ -75,6 +76,15 @@ var NewApplication = React.createClass({
         success: function() {
           console.log(that);
           that.props.history.pushState(null,'/');
+        },
+        statusCode: {
+          409: function(data) {
+            console.log("set alert")
+            console.log(data.responseJSON.reason)
+            that.setState({
+              alert: data.responseJSON.reason
+            });
+          }
         }
       });
     };
@@ -88,11 +98,19 @@ var NewApplication = React.createClass({
 
   },
   render: function() {
+
+    var alert = ""
+
+    if (this.state.alert) {
+      alert = (<Alert bsStyle="danger">{this.state.alert}</Alert>);
+    }
+
     return (
       <div className="container-fluid">
         <div className="row">
           <div className="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-4">
            <Panel header="Upload a New Application Descriptor">
+            {alert}
             <form>
               <Input type="text" ref="applicationName" placeholder="Application Name" label="Application Name" help="Unique name of the application" onChange={this.handleChange} />
               <Input type="file" label="File" id="file" ref="applicationFile" onChange={this.handleChange} />
