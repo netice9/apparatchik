@@ -1,6 +1,10 @@
 package main
 
-import "github.com/fsouza/go-dockerclient"
+import (
+	"errors"
+
+	"github.com/fsouza/go-dockerclient"
+)
 
 type ApplicationConfiguration struct {
 	Goals    map[string]GoalConfiguration `json:"goals"`
@@ -47,4 +51,11 @@ type GoalConfiguration struct {
 	ContainerName *string                  `json:"container_name"`
 	ExternalLinks []string                 `json:"external_links"`
 	SmartRestart  bool                     `json:"smart_restart"`
+}
+
+func (config *ApplicationConfiguration) Validate() error {
+	if config.MainGoal == "" {
+		return errors.New("Main goal is not set")
+	}
+	return nil
 }
