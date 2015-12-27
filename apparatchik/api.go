@@ -324,7 +324,23 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		err := decoder.Decode(&applicationConfiguration)
 
 		if err != nil {
-			panic("can't parse")
+			w.WriteHeader(400)
+			e := ErrorResponse{Reason: err.Error()}
+			if err := json.NewEncoder(w).Encode(e); err != nil {
+				panic(err)
+			}
+			return
+		}
+
+		err = applicationConfiguration.Validate()
+
+		if err != nil {
+			w.WriteHeader(400)
+			e := ErrorResponse{Reason: err.Error()}
+			if err := json.NewEncoder(w).Encode(e); err != nil {
+				panic(err)
+			}
+			return
 		}
 
 		log.Println("about to create", applicationName, applicationConfiguration)

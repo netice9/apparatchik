@@ -8,6 +8,11 @@ import (
 )
 
 var validConfiguration = &ApplicationConfiguration{
+	Goals: map[string]GoalConfiguration{
+		"test": GoalConfiguration{
+			Image: "alpine:3.2",
+		},
+	},
 	MainGoal: "test",
 }
 
@@ -15,9 +20,16 @@ func TestApplicationConfigurationValidatesValidConfiguration(t *testing.T) {
 	assert.Nil(t, validConfiguration.Validate())
 }
 
-func TestApplicationConfigurationDoesNotValidateMissingMainGoal(t *testing.T) {
+func TestApplicationConfigurationChecksForNotSetMainGoal(t *testing.T) {
 	copy := *validConfiguration
 	copy.MainGoal = ""
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Main goal is not set", copy.Validate().Error())
+}
+
+func TestApplicationConfigurationChecksMainGoalNotExisting(t *testing.T) {
+	copy := *validConfiguration
+	copy.MainGoal = "wrong"
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Main goal 'wrong' is not defined", copy.Validate().Error())
 }

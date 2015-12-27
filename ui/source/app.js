@@ -79,8 +79,11 @@ var NewApplication = React.createClass({
         },
         statusCode: {
           409: function(data) {
-            console.log("set alert")
-            console.log(data.responseJSON.reason)
+            that.setState({
+              alert: data.responseJSON.reason
+            });
+          },
+          400: function(data) {
             that.setState({
               alert: data.responseJSON.reason
             });

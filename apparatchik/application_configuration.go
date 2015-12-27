@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -56,6 +57,9 @@ type GoalConfiguration struct {
 func (config *ApplicationConfiguration) Validate() error {
 	if config.MainGoal == "" {
 		return errors.New("Main goal is not set")
+	}
+	if _, ok := config.Goals[config.MainGoal]; !ok {
+		return errors.New(fmt.Sprintf("Main goal '%s' is not defined", config.MainGoal))
 	}
 	return nil
 }
