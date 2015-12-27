@@ -14,9 +14,7 @@ import (
 var apparatchick = &Apparatchik{}
 
 func main() {
-	endpoint := "unix:///var/run/docker.sock"
-	dockerClient, err := docker.NewClient(endpoint)
-	// dockerClient, err := docker.NewClientFromEnv()
+	dockerClient, err := docker.NewClientFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
