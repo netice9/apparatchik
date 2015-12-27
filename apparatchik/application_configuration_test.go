@@ -8,8 +8,8 @@ import (
 )
 
 var validConfiguration = &ApplicationConfiguration{
-	Goals: map[string]GoalConfiguration{
-		"test": GoalConfiguration{
+	Goals: map[string]*GoalConfiguration{
+		"test": &GoalConfiguration{
 			Image: "alpine:3.2",
 		},
 	},
@@ -21,22 +21,30 @@ func TestApplicationConfigurationValidatesValidConfiguration(t *testing.T) {
 }
 
 func TestApplicationConfigurationChecksForNotSetMainGoal(t *testing.T) {
-	copy := *validConfiguration
+	copy := validConfiguration.Clone()
 	copy.MainGoal = ""
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Main goal is not set", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksMainGoalNotExisting(t *testing.T) {
-	copy := *validConfiguration
+	copy := validConfiguration.Clone()
 	copy.MainGoal = "wrong"
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Main goal 'wrong' is not defined", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksGoalNameNotValid(t *testing.T) {
-	copy := *validConfiguration
-	copy.Goals["this+|s|invalid"] = GoalConfiguration{}
+	copy := validConfiguration.Clone()
+	copy.Goals["this+|s|invalid"] = &GoalConfiguration{}
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Goal 'this+|s|invalid' has invalid name", copy.Validate().Error())
+}
+
+func TestApplicationConfigurationChecksValidGoalImageName(t *testing.T) {
+	copy := validConfiguration.Clone()
+	goal := copy.Goals["test"]
+	goal.Image = "!"
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Goal 'test' has invalid image name", copy.Validate().Error())
 }

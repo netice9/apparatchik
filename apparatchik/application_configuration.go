@@ -9,8 +9,8 @@ import (
 )
 
 type ApplicationConfiguration struct {
-	Goals    map[string]GoalConfiguration `json:"goals"`
-	MainGoal string                       `json:"main_goal"`
+	Goals    map[string]*GoalConfiguration `json:"goals"`
+	MainGoal string                        `json:"main_goal"`
 }
 
 type GoalConfiguration struct {
@@ -55,7 +55,19 @@ type GoalConfiguration struct {
 	SmartRestart  bool                     `json:"smart_restart"`
 }
 
+func (config *ApplicationConfiguration) Clone() *ApplicationConfiguration {
+	clone := *config
+	clone.Goals = map[string]*GoalConfiguration{}
+	for goalName, goal := range config.Goals {
+
+		clone.Goals[goalName] = goal
+	}
+	return &clone
+}
+
 var goalNameExpression = regexp.MustCompile("^[0-9a-zA-Z_\\.\\-]+$")
+
+var imageExpression = regexp.MustCompile("^[0-9a-zA-Z\\.\\-/:_]+:[0-9a-zA-Z\\.\\-_]+$")
 
 func (config *ApplicationConfiguration) Validate() error {
 	if config.MainGoal == "" {
@@ -64,9 +76,12 @@ func (config *ApplicationConfiguration) Validate() error {
 	if _, ok := config.Goals[config.MainGoal]; !ok {
 		return errors.New(fmt.Sprintf("Main goal '%s' is not defined", config.MainGoal))
 	}
-	for name, _ := range config.Goals {
+	for name, goal := range config.Goals {
 		if !goalNameExpression.MatchString(name) {
 			return errors.New(fmt.Sprintf("Goal '%s' has invalid name", name))
+		}
+		if !imageExpression.MatchString(goal.Image) {
+			return errors.New(fmt.Sprintf("Goal '%s' has invalid image name", name))
 		}
 	}
 	return nil

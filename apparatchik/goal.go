@@ -408,7 +408,7 @@ func ParseRepositoryTag(repos string) (string, string) {
 	return repos, ""
 }
 
-func NewGoal(goalName string, applicationName string, configs map[string]GoalConfiguration, dockerClient *docker.Client) *Goal {
+func NewGoal(goalName string, applicationName string, configs map[string]*GoalConfiguration, dockerClient *docker.Client) *Goal {
 
 	config := configs[goalName]
 
