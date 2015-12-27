@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -60,6 +61,29 @@ func (gc *GoalConfiguration) Clone() *GoalConfiguration {
 	return &copy
 }
 
+type LinkedContainer struct {
+	Name  string
+	Alias string
+}
+
+func (gc *GoalConfiguration) LinkedContainers() []LinkedContainer {
+
+	result := []LinkedContainer{}
+
+	for _, link := range gc.Links {
+
+		parts := strings.SplitN(link, ":", 2)
+		lc := LinkedContainer{parts[0], parts[0]}
+		if len(parts) == 2 {
+			lc.Alias = parts[1]
+		}
+		result = append(result, lc)
+	}
+
+	return result
+
+}
+
 func (config *ApplicationConfiguration) Clone() *ApplicationConfiguration {
 	clone := *config
 	clone.Goals = map[string]*GoalConfiguration{}
@@ -92,6 +116,13 @@ func (config *ApplicationConfiguration) Validate() error {
 		for _, runAfter := range goal.RunAfter {
 			if _, ok := config.Goals[runAfter]; !ok {
 				return errors.New(fmt.Sprintf("Goal '%s' should run after goal '%s' that does not exist", name, runAfter))
+			}
+		}
+
+		// Goal 'test' links goal 'test2' that does not exist
+		for _, linkedContainer := range goal.LinkedContainers() {
+			if _, ok := config.Goals[linkedContainer.Name]; !ok {
+				return errors.New(fmt.Sprintf("Goal '%s' links goal '%s' that does not exist", name, linkedContainer.Name))
 			}
 		}
 	}

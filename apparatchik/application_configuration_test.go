@@ -57,3 +57,17 @@ func TestApplicationConfigurationChecksRunAfterGoalsExisting(t *testing.T) {
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Goal 'test' should run after goal 'test2' that does not exist", copy.Validate().Error())
 }
+
+func TestApplicationConfigurationChecksLinkedGoalsExisting(t *testing.T) {
+	copy := validConfiguration.Clone()
+	goal := copy.Goals["test"]
+
+	goal.Links = []string{"test2"}
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Goal 'test' links goal 'test2' that does not exist", copy.Validate().Error())
+}
+
+func TestLinkedContainers(t *testing.T) {
+	goal := GoalConfiguration{Links: []string{"c1", "c2:alias"}}
+	require.Equal(t, []LinkedContainer{LinkedContainer{"c1", "c1"}, LinkedContainer{"c2", "alias"}}, goal.LinkedContainers())
+}
