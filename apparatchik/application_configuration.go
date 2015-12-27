@@ -55,12 +55,17 @@ type GoalConfiguration struct {
 	SmartRestart  bool                     `json:"smart_restart"`
 }
 
+func (gc *GoalConfiguration) Clone() *GoalConfiguration {
+	copy := *gc
+	return &copy
+}
+
 func (config *ApplicationConfiguration) Clone() *ApplicationConfiguration {
 	clone := *config
 	clone.Goals = map[string]*GoalConfiguration{}
 	for goalName, goal := range config.Goals {
 
-		clone.Goals[goalName] = goal
+		clone.Goals[goalName] = goal.Clone()
 	}
 	return &clone
 }
@@ -82,6 +87,12 @@ func (config *ApplicationConfiguration) Validate() error {
 		}
 		if !imageExpression.MatchString(goal.Image) {
 			return errors.New(fmt.Sprintf("Goal '%s' has invalid image name", name))
+		}
+
+		for _, runAfter := range goal.RunAfter {
+			if _, ok := config.Goals[runAfter]; !ok {
+				return errors.New(fmt.Sprintf("Goal '%s' should run after goal '%s' that does not exist", name, runAfter))
+			}
 		}
 	}
 	return nil

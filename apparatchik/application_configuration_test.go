@@ -48,3 +48,12 @@ func TestApplicationConfigurationChecksValidGoalImageName(t *testing.T) {
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Goal 'test' has invalid image name", copy.Validate().Error())
 }
+
+func TestApplicationConfigurationChecksRunAfterGoalsExisting(t *testing.T) {
+	copy := validConfiguration.Clone()
+	goal := copy.Goals["test"]
+
+	goal.RunAfter = []string{"test2"}
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Goal 'test' should run after goal 'test2' that does not exist", copy.Validate().Error())
+}
