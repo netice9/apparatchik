@@ -33,3 +33,10 @@ func TestApplicationConfigurationChecksMainGoalNotExisting(t *testing.T) {
 	require.NotNil(t, copy.Validate())
 	require.Equal(t, "Main goal 'wrong' is not defined", copy.Validate().Error())
 }
+
+func TestApplicationConfigurationChecksGoalNameNotValid(t *testing.T) {
+	copy := *validConfiguration
+	copy.Goals["this+|s|invalid"] = GoalConfiguration{}
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Goal 'this+|s|invalid' has invalid name", copy.Validate().Error())
+}
