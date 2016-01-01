@@ -80,6 +80,24 @@ func (app *Application) TransitionLog(goalName string) ([]TransitionLogEntry, er
 }
 
 func (app *Application) Stats(goalName string, since time.Time) (*Stats, error) {
+	res, err := cine.Call(app.Self(), (*Application).stats, goalName, since)
+
+	if err != nil {
+		panic(err)
+	}
+
+	stats := (*Stats)(nil)
+
+	stats, _ = res[0].(*Stats)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return stats, err2
+}
+
+func (app *Application) stats(goalName string, since time.Time) (*Stats, error) {
 	if app == nil {
 		return nil, nil
 	}
