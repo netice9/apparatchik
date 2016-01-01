@@ -142,6 +142,14 @@ func (p *Application) Terminate(errReason error) {
 }
 
 func (app *Application) TerminateApplication() {
+	_, err := cine.Call(app.Self(), (*Application).terminateApplication)
+
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (app *Application) terminateApplication() {
 	os.Remove(app.ApplicationFileName)
 	for _, goal := range app.Goals {
 		goal.Terminate()
