@@ -5,14 +5,13 @@ import (
 	"errors"
 	"io/ioutil"
 	"strings"
-	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/devsisters/cine"
 	"github.com/fsouza/go-dockerclient"
 )
 
-var apparatchick = &Apparatchik{}
+var apparatchick *Apparatchik = nil
 
 func main() {
 	dockerClient, err := docker.NewClientFromEnv()
@@ -22,8 +21,7 @@ func main() {
 
 	cine.Init("localhost:8000")
 
-	apparatchick.applications = map[string]*Application{}
-	apparatchick.dockerClient = dockerClient
+	apparatchick = StartApparatchick(dockerClient)
 
 	files, err := ioutil.ReadDir("/applications")
 
@@ -56,15 +54,22 @@ func main() {
 }
 
 type Apparatchik struct {
+	cine.Actor
 	applications map[string]*Application
 	dockerClient *docker.Client
-	lock         sync.Mutex
+}
+
+func StartApparatchick(dockerClient *docker.Client) *Apparatchik {
+	apparatchick := &Apparatchik{cine.Actor{}, map[string]*Application{}, dockerClient}
+	cine.StartActor(apparatchick)
+	return apparatchick
+
+}
+
+func (p *Apparatchik) Terminate(errReason error) {
 }
 
 func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*string, error) {
-
-	ap.lock.Lock()
-	defer ap.lock.Unlock()
 
 	application, ok := ap.applications[applicatioName]
 	if !ok {
@@ -78,8 +83,6 @@ func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*
 }
 
 func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*Application, error) {
-	ap.lock.Lock()
-	defer ap.lock.Unlock()
 
 	_, ok := ap.applications[name]
 
@@ -92,7 +95,7 @@ func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfigurat
 	return application, nil
 }
 
-func (ap *Apparatchik) Terminate(applicationName string) error {
+func (ap *Apparatchik) TerminateApplication(applicationName string) error {
 
 	application, err := ap.ApplicationByName(applicationName)
 
@@ -102,15 +105,11 @@ func (ap *Apparatchik) Terminate(applicationName string) error {
 
 	// TODO Terminate() executes outside of the lock - figure out concurrency
 	application.Terminate()
-	ap.lock.Lock()
-	defer ap.lock.Unlock()
 	delete(ap.applications, applicationName)
 	return nil
 }
 
 func (ap *Apparatchik) ApplicatioNames() []string {
-	ap.lock.Lock()
-	defer ap.lock.Unlock()
 
 	names := []string{}
 	for k, _ := range ap.applications {
@@ -120,8 +119,6 @@ func (ap *Apparatchik) ApplicatioNames() []string {
 }
 
 func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
-	ap.lock.Lock()
-	defer ap.lock.Unlock()
 
 	application, ok := ap.applications[name]
 	if !ok {
