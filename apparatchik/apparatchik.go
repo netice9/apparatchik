@@ -108,7 +108,25 @@ func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*
 	return goal.ContainerId, nil
 }
 
-func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*Application, error) {
+func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
+	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).newApplication, name, config)
+
+	if err != nil {
+		panic(err)
+	}
+
+	status := (*ApplicationStatus)(nil)
+
+	status, _ = res[0].(*ApplicationStatus)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return status, err2
+}
+
+func (ap *Apparatchik) newApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
 
 	_, ok := ap.applications[name]
 
@@ -118,7 +136,7 @@ func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfigurat
 
 	application := NewApplication(name, config, ap.dockerClient)
 	ap.applications[name] = application
-	return application, nil
+	return application.Status(), nil
 }
 
 func (ap *Apparatchik) TerminateApplication(applicationName string) error {

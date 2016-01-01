@@ -338,8 +338,7 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	log.Println("about to create", applicationName, applicationConfiguration)
-	app, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
+	status, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
 
 	if err != nil {
 		w.WriteHeader(409)
@@ -349,10 +348,6 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		}
 		return
 	}
-
-	log.Println("created")
-
-	status := app.Status()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(201)
