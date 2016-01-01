@@ -141,13 +141,27 @@ func (ap *Apparatchik) newApplication(name string, config *ApplicationConfigurat
 
 func (ap *Apparatchik) TerminateApplication(applicationName string) error {
 
+	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).terminateApplication, applicationName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err2 := (error)(nil)
+
+	err2, _ = res[0].(error)
+
+	return err2
+}
+
+func (ap *Apparatchik) terminateApplication(applicationName string) error {
+
 	application, err := ap.ApplicationByName(applicationName)
 
 	if err != nil {
 		return err
 	}
 
-	// TODO Terminate() executes outside of the lock - figure out concurrency
 	application.Terminate()
 	delete(ap.applications, applicationName)
 	return nil
