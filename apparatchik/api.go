@@ -21,6 +21,7 @@ type ErrorResponse struct {
 
 var (
 	applicationAlreadyExistsError = errors.New("Application already exists")
+	applicationNotFoundError      = errors.New("Application not found")
 )
 
 func startHttpServer() {
@@ -204,12 +205,22 @@ func GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 func GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
-	transitionLog, err := application.TransitionLog(goalName)
+
+	transitionLog, err := apparatchick.GoalTransitionLog(applicationName, goalName)
+
+	if err == applicationNotFoundError {
+		w.WriteHeader(404)
+		e := ErrorResponse{Reason: err.Error()}
+		if err := json.NewEncoder(w).Encode(e); err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	if err != nil {
 		panic(err)
 	}
+
 	if transitionLog != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)

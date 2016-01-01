@@ -70,8 +70,27 @@ func (app *Application) Inspect(goalName string) (*docker.Container, error) {
 
 func (app *Application) TransitionLog(goalName string) ([]TransitionLogEntry, error) {
 	if app == nil {
-		return nil, nil
+		return nil, applicationNotFoundError
 	}
+
+	res, err := cine.Call(app.Self(), (*Application).transitionLog, goalName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	entries := ([]TransitionLogEntry)(nil)
+
+	entries, _ = res[0].([]TransitionLogEntry)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return entries, err2
+}
+
+func (app *Application) transitionLog(goalName string) ([]TransitionLogEntry, error) {
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.TransitionLog(), nil
 	} else {
@@ -108,6 +127,7 @@ func (app *Application) stats(goalName string, since time.Time) (*Stats, error) 
 	}
 }
 
+// TODO: get the container id from goal and do the docker call
 func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
 	if app == nil {
 		return nil, nil

@@ -188,10 +188,36 @@ func (ap *Apparatchik) applicatioNames() []string {
 }
 
 func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
-
 	application, ok := ap.applications[name]
 	if !ok {
-		return nil, errors.New("Application not found")
+		return nil, applicationNotFoundError
 	}
 	return application, nil
+}
+
+func (ap *Apparatchik) GoalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
+	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).goalTransitionLog, applicationName, goalName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	logEntries := ([]TransitionLogEntry)(nil)
+
+	logEntries, _ = res[0].([]TransitionLogEntry)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return logEntries, err2
+}
+
+func (ap *Apparatchik) goalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
+	application, err := ap.ApplicationByName(applicationName)
+	if err != nil {
+		return nil, err
+	}
+
+	return application.TransitionLog(goalName)
 }
