@@ -113,7 +113,7 @@ func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfigurat
 	_, ok := ap.applications[name]
 
 	if ok {
-		return nil, errors.New("Application already exists")
+		return nil, applicationAlreadyExistsError
 	}
 
 	application := NewApplication(name, config, ap.dockerClient)

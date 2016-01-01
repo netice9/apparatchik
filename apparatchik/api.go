@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -17,6 +18,10 @@ import (
 type ErrorResponse struct {
 	Reason string `json:"reason"`
 }
+
+var (
+	applicationAlreadyExistsError = errors.New("Application already exists")
+)
 
 func startHttpServer() {
 	router := httprouter.New()
@@ -310,54 +315,50 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	applicationName := ps.ByName("applicationName")
 	decoder := json.NewDecoder(r.Body)
 
-	// TODO handle error
-	_, err := apparatchick.ApplicationByName(applicationName)
+	var applicationConfiguration ApplicationConfiguration
+	err := decoder.Decode(&applicationConfiguration)
 
-	if err == nil {
-		w.WriteHeader(409)
-		e := ErrorResponse{Reason: "application already exists"}
+	if err != nil {
+		w.WriteHeader(400)
+		e := ErrorResponse{Reason: err.Error()}
 		if err := json.NewEncoder(w).Encode(e); err != nil {
 			panic(err)
 		}
-	} else {
+		return
+	}
 
-		var applicationConfiguration ApplicationConfiguration
-		err := decoder.Decode(&applicationConfiguration)
+	err = applicationConfiguration.Validate()
 
-		if err != nil {
-			w.WriteHeader(400)
-			e := ErrorResponse{Reason: err.Error()}
-			if err := json.NewEncoder(w).Encode(e); err != nil {
-				panic(err)
-			}
-			return
-		}
-
-		err = applicationConfiguration.Validate()
-
-		if err != nil {
-			w.WriteHeader(400)
-			e := ErrorResponse{Reason: err.Error()}
-			if err := json.NewEncoder(w).Encode(e); err != nil {
-				panic(err)
-			}
-			return
-		}
-
-		log.Println("about to create", applicationName, applicationConfiguration)
-		// TODO handle error to simplify above if
-		app, _ := apparatchick.NewApplication(applicationName, &applicationConfiguration)
-
-		log.Println("created")
-
-		status := app.Status()
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(201)
-
-		if err := json.NewEncoder(w).Encode(status); err != nil {
+	if err != nil {
+		w.WriteHeader(400)
+		e := ErrorResponse{Reason: err.Error()}
+		if err := json.NewEncoder(w).Encode(e); err != nil {
 			panic(err)
 		}
+		return
+	}
+
+	log.Println("about to create", applicationName, applicationConfiguration)
+	app, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
+
+	if err != nil {
+		w.WriteHeader(409)
+		e := ErrorResponse{Reason: err.Error()}
+		if err := json.NewEncoder(w).Encode(e); err != nil {
+			panic(err)
+		}
+		return
+	}
+
+	log.Println("created")
+
+	status := app.Status()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		panic(err)
 	}
 
 }
