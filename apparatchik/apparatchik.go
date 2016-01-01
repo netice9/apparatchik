@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"log"
 	"strings"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/devsisters/cine"
 	"github.com/fsouza/go-dockerclient"
 )
 
@@ -18,6 +19,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	cine.Init("localhost:8000")
 
 	apparatchick.applications = map[string]*Application{}
 	apparatchick.dockerClient = dockerClient
