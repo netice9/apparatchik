@@ -69,6 +69,32 @@ func StartApparatchick(dockerClient *docker.Client) *Apparatchik {
 func (p *Apparatchik) Terminate(errReason error) {
 }
 
+func (p *Apparatchik) applicationStatus(applicatioName string) (*ApplicationStatus, error) {
+	app, err := p.ApplicationByName(applicatioName)
+	if err != nil {
+		return nil, err
+	}
+	return app.Status(), nil
+}
+
+func (p *Apparatchik) ApplicationStatus(applicatioName string) (*ApplicationStatus, error) {
+	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).applicationStatus, applicatioName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	status := (*ApplicationStatus)(nil)
+
+	status, _ = res[0].(*ApplicationStatus)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return status, err2
+}
+
 func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*string, error) {
 
 	application, ok := ap.applications[applicatioName]
@@ -110,6 +136,17 @@ func (ap *Apparatchik) TerminateApplication(applicationName string) error {
 }
 
 func (ap *Apparatchik) ApplicatioNames() []string {
+
+	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).applicatioNames)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return res[0].([]string)
+}
+
+func (ap *Apparatchik) applicatioNames() []string {
 
 	names := []string{}
 	for k, _ := range ap.applications {

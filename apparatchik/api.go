@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/devsisters/cine"
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/context"
@@ -41,11 +40,10 @@ func startHttpServer() {
 
 func GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	application, err := apparatchick.ApplicationByName(applicationName)
+	status, err := apparatchick.ApplicationStatus(applicationName)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err == nil {
-		status := application.Status()
 		w.WriteHeader(200)
 		if err := json.NewEncoder(w).Encode(status); err != nil {
 			panic(err)
@@ -182,15 +180,7 @@ func DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 func GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).ApplicatioNames)
-
-	if err != nil {
-		panic(err)
-	}
-
-	names := res[0].([]string)
-
-	if err := json.NewEncoder(w).Encode(names); err != nil {
+	if err := json.NewEncoder(w).Encode(apparatchick.ApplicatioNames()); err != nil {
 		panic(err)
 	}
 
