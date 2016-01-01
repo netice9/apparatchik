@@ -7,17 +7,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/devsisters/cine"
 	"github.com/fsouza/go-dockerclient"
 )
 
 type Application struct {
+	cine.Actor
 	Name                string
 	Goals               map[string]*Goal
 	MainGoal            string
 	ApplicationFileName string
-
-	StatusRequest    chan chan *ApplicationStatus
-	TerminateRequest chan bool
 }
 
 type ApplicationStatus struct {
@@ -26,48 +25,32 @@ type ApplicationStatus struct {
 	MainGoal string                 `json:"main_goal"`
 }
 
-func (app *Application) Actor() {
+func (app *Application) Status() *ApplicationStatus {
+	res, err := cine.Call(app.Self(), (*Application).status)
 
-	app.startGoals()
-
-	for {
-		select {
-		case <-app.TerminateRequest:
-			os.Remove(app.ApplicationFileName)
-			for _, goal := range app.Goals {
-				goal.Terminate()
-			}
-			return
-
-		case responseChannel := <-app.StatusRequest:
-
-			go func() {
-				goals := make(map[string]*GoalStatus)
-
-				for name, goal := range app.Goals {
-					goals[name] = goal.Status()
-				}
-
-				responseChannel <- &ApplicationStatus{
-					Name:     app.Name,
-					Goals:    goals,
-					MainGoal: app.MainGoal,
-				}
-			}()
-
-		}
+	if err != nil {
+		panic(err)
 	}
 
+	status := (*ApplicationStatus)(nil)
+
+	status, _ = res[0].(*ApplicationStatus)
+
+	return status
 }
 
-func (app *Application) Status() *ApplicationStatus {
+func (app *Application) status() *ApplicationStatus {
+	goals := map[string]*GoalStatus{}
 
-	responseChannel := make(chan *ApplicationStatus)
+	for name, goal := range app.Goals {
+		goals[name] = goal.Status()
+	}
 
-	app.StatusRequest <- responseChannel
-
-	return <-responseChannel
-
+	return &ApplicationStatus{
+		Name:     app.Name,
+		Goals:    goals,
+		MainGoal: app.MainGoal,
+	}
 }
 
 func (app *Application) Logs(goalName string, w io.Writer) error {
@@ -144,20 +127,23 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 		goals[goalName] = NewGoal(goalName, applicationName, applicationConfiguration.Goals, dockerClient)
 	}
 
-	app := &Application{
-		Name:                applicationName,
-		StatusRequest:       make(chan chan *ApplicationStatus),
-		TerminateRequest:    make(chan bool),
-		Goals:               goals,
-		MainGoal:            applicationConfiguration.MainGoal,
-		ApplicationFileName: fileName,
-	}
+	app := &Application{cine.Actor{}, applicationName, goals, applicationConfiguration.MainGoal, fileName}
 
-	go app.Actor()
+	cine.StartActor(app)
+
+	// TODO: cast the actor
+	app.startGoals()
+
 	return app
 
 }
 
-func (app *Application) Terminate() {
-	app.TerminateRequest <- true
+func (p *Application) Terminate(errReason error) {
+}
+
+func (app *Application) TerminateApplication() {
+	os.Remove(app.ApplicationFileName)
+	for _, goal := range app.Goals {
+		goal.Terminate()
+	}
 }

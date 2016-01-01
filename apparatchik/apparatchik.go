@@ -162,7 +162,7 @@ func (ap *Apparatchik) terminateApplication(applicationName string) error {
 		return err
 	}
 
-	application.Terminate()
+	application.TerminateApplication()
 	delete(ap.applications, applicationName)
 	return nil
 }
