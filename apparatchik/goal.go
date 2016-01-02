@@ -1,14 +1,14 @@
 package main
 
 import (
-	// "errors"
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/cine"
 )
 
 type TransitionLogEntry struct {
@@ -23,6 +23,8 @@ type GoalStatus struct {
 }
 
 type Goal struct {
+	cine.Actor
+	application          *Application
 	Name                 string
 	ApplicationName      string
 	DockerClient         *docker.Client
@@ -34,8 +36,8 @@ type Goal struct {
 	ShouldRun            bool
 	ImageExists          bool
 	AuthConfig           docker.AuthConfiguration
-	GoalEventListeners   []chan GoalEvent
-	SmartRestart         bool
+	// GoalEventListeners   []chan GoalEvent
+	SmartRestart bool
 
 	CreateContainerOptions docker.CreateContainerOptions
 
@@ -43,17 +45,6 @@ type Goal struct {
 	ExitCode    *int
 
 	transitionLog []TransitionLogEntry
-
-	StatusRequest             chan chan *GoalStatus
-	StartRequest              chan bool
-	DockerEvent               chan *docker.APIEvents
-	GoalEvent                 chan GoalEvent
-	FetchImageFinished        chan *string
-	RegisterGoalEventListener chan chan GoalEvent
-	ApplicationStarted        chan map[string]*Goal
-	TerminateRequest          chan bool
-
-	stateLock sync.Mutex
 
 	statsTracker *StatsTracker
 }
@@ -63,11 +54,24 @@ type GoalEvent struct {
 	Event string
 }
 
-func (goal *Goal) setCurrentStatus(status string) {
-	goal.stateLock.Lock()
-	for _, listener := range goal.GoalEventListeners {
-		listener <- GoalEvent{Name: goal.Name, Event: status}
+func (goal *Goal) terminateGoal() {
+	// TODO use goroutine?
+	if goal.ContainerId != nil {
+		goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            *goal.ContainerId,
+			RemoveVolumes: true,
+			Force:         true,
+		})
 	}
+}
+
+func (goal *Goal) SetCurrentStatus(status string) {
+	cine.Cast(goal.Self(), nil, (*Goal).setCurrentStatus, status)
+}
+
+func (goal *Goal) setCurrentStatus(status string) {
+
+	log.Info("setting current status of goal ", goal.Name, " to ", status)
 
 	goal.transitionLog = append(goal.transitionLog, TransitionLogEntry{Time: time.Now(), Status: status})
 
@@ -75,108 +79,31 @@ func (goal *Goal) setCurrentStatus(status string) {
 		goal.transitionLog = goal.transitionLog[1:]
 	}
 
+	goal.application.GoalStatusUpdate(goal.Name, status)
+
 	goal.CurrentStatus = status
 
-	goal.stateLock.Unlock()
 }
 
-func (goal *Goal) Actor() {
+func (goal *Goal) FetchImageFailed(reason string) {
+	cine.Cast(goal.Self(), nil, (*Goal).fetchImageFailed, reason)
+}
 
-	goal.DockerClient.AddEventListener(goal.DockerEvent)
+func (goal *Goal) fetchImageFailed(reason string) {
+	goal.setCurrentStatus("error: " + reason)
+}
 
-	defer goal.DockerClient.RemoveEventListener(goal.DockerEvent)
+func (goal *Goal) FetchImageFinished() {
+	cine.Cast(goal.Self(), nil, (*Goal).fetchImageFinished)
+}
 
-	go goal.FetchImage()
-
-	for {
-		select {
-
-		case <-goal.TerminateRequest:
-			if goal.ContainerId != nil {
-				goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
-					ID:            *goal.ContainerId,
-					RemoveVolumes: true,
-					Force:         true,
-				})
-			}
-			return
-
-		case fetchImageFinished := <-goal.FetchImageFinished:
-			if fetchImageFinished == nil {
-				goal.ImageExists = true
-				if goal.canRun() {
-					goal.StartContainer()
-				} else {
-					goal.setCurrentStatus("waiting_for_dependencies")
-				}
-			} else {
-				goal.setCurrentStatus("error: " + *fetchImageFinished)
-			}
-		case event := <-goal.GoalEvent:
-
-			if _, ok := goal.RunAfterStatuses[event.Name]; ok {
-				goal.RunAfterStatuses[event.Name] = event.Event
-			}
-			if _, ok := goal.LinksStatuses[event.Name]; ok {
-				goal.LinksStatuses[event.Name] = event.Event
-			}
-
-			if goal.canRun() {
-				goal.StartContainer()
-			} else if goal.shouldStop() {
-				goal.StopContainer()
-			}
-
-		case goals := <-goal.ApplicationStarted:
-			goal.Goals = goals
-
-			for goalName, _ := range goal.RunAfterStatuses {
-				goal.Goals[goalName].RegisterGoalEventListener <- goal.GoalEvent
-			}
-
-			for goalName, _ := range goal.LinksStatuses {
-				goal.Goals[goalName].RegisterGoalEventListener <- goal.GoalEvent
-			}
-
-		case goalEventListener := <-goal.RegisterGoalEventListener:
-			goal.GoalEventListeners = append(goal.GoalEventListeners, goalEventListener)
-
-		case responseChannel := <-goal.StatusRequest:
-			responseChannel <- &GoalStatus{
-				Name:     goal.Name,
-				Status:   goal.CurrentStatus,
-				ExitCode: goal.ExitCode,
-			}
-
-		case <-goal.StartRequest:
-
-			goal.ShouldRun = true
-
-			if goal.canRun() {
-				goal.StartContainer()
-			} else {
-				if goal.ImageExists {
-					goal.setCurrentStatus("waiting_for_dependencies")
-				} else {
-					goal.setCurrentStatus("fetching_image")
-				}
-				for name, status := range goal.RunAfterStatuses {
-					if status != "not_running" {
-						goal.Goals[name].Start()
-					}
-				}
-				for name, status := range goal.LinksStatuses {
-					if status != "running" {
-						goal.Goals[name].Start()
-					}
-				}
-			}
-
-		case dockerEvent := <-goal.DockerEvent:
-			goal.HandleDockerEvent(dockerEvent)
-		}
+func (goal *Goal) fetchImageFinished() {
+	goal.ImageExists = true
+	if goal.canRun() {
+		goal.startContainer()
+	} else {
+		goal.setCurrentStatus("waiting_for_dependencies")
 	}
-
 }
 
 func (goal *Goal) shouldStop() bool {
@@ -225,6 +152,10 @@ func (goal *Goal) canRun() bool {
 }
 
 func (goal *Goal) HandleDockerEvent(evt *docker.APIEvents) {
+	cine.Cast(goal.Self(), nil, (*Goal).handleDockerEvent, evt)
+}
+
+func (goal *Goal) handleDockerEvent(evt *docker.APIEvents) {
 	if goal.ContainerId != nil && evt.ID == *goal.ContainerId {
 		if evt.Status == "start" {
 			goal.setCurrentStatus("running")
@@ -243,7 +174,7 @@ func (goal *Goal) HandleDockerEvent(evt *docker.APIEvents) {
 			} else {
 				goal.setCurrentStatus("failed")
 				if goal.canRun() {
-					goal.StartContainer()
+					goal.startContainer()
 				}
 
 			}
@@ -261,20 +192,20 @@ func Contains(stringSlice []string, value string) bool {
 	return false
 }
 
-func (goal *Goal) findImageIdByRepoTag() (*string, error) {
-	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{})
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, image := range images {
-		if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-			return &image.ID, nil
-		}
-	}
-	return nil, docker.ErrNoSuchImage
-}
+// func (goal *Goal) findImageIdByRepoTag() (*string, error) {
+// 	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{})
+//
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	for _, image := range images {
+// 		if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
+// 			return &image.ID, nil
+// 		}
+// 	}
+// 	return nil, docker.ErrNoSuchImage
+// }
 
 func ContainsString(slice []string, val string) bool {
 	for _, c := range slice {
@@ -302,9 +233,8 @@ func (goal *Goal) findContainerIdByName(name string) (*docker.APIContainers, err
 func containerName(applicationName string, goalName string, configName *string) string {
 	if configName != nil {
 		return *configName
-	} else {
-		return fmt.Sprintf("ap_%s_%s", applicationName, goalName)
 	}
+	return fmt.Sprintf("ap_%s_%s", applicationName, goalName)
 }
 
 func (goal *Goal) StopContainer() {
@@ -315,7 +245,7 @@ func (goal *Goal) StopContainer() {
 	}
 }
 
-func (goal *Goal) StartContainer() {
+func (goal *Goal) startContainer() {
 
 	goal.setCurrentStatus("starting")
 
@@ -324,7 +254,7 @@ func (goal *Goal) StartContainer() {
 		existingContainer, err := goal.findContainerIdByName(goal.CreateContainerOptions.Name)
 
 		if err != nil {
-			goal.setCurrentStatus("error: " + err.Error())
+			goal.SetCurrentStatus("error: " + err.Error())
 			return
 		}
 
@@ -335,7 +265,7 @@ func (goal *Goal) StartContainer() {
 				Force:         true,
 			})
 			if err != nil {
-				goal.setCurrentStatus("error: " + err.Error())
+				goal.SetCurrentStatus("error: " + err.Error())
 				return
 			}
 		}
@@ -343,26 +273,40 @@ func (goal *Goal) StartContainer() {
 		container, err := goal.DockerClient.CreateContainer(goal.CreateContainerOptions)
 
 		if err != nil {
-			goal.setCurrentStatus("error: " + err.Error())
+			goal.SetCurrentStatus("error: " + err.Error())
 			return
 		}
 
-		goal.ContainerId = &container.ID
+		goal.SetContainerID(container.ID)
 
 		err = goal.DockerClient.StartContainer(container.ID, nil)
 
 		if err != nil {
-			goal.setCurrentStatus("error: " + err.Error())
+			goal.SetCurrentStatus("error: " + err.Error())
 			return
 		}
 
-		goal.statsTracker = NewStatsTracker(*goal.ContainerId, goal.DockerClient)
+		goal.ContainerStarted()
+
 	}()
 
 }
 
-func (goal *Goal) Start() {
-	goal.StartRequest <- true
+func (goal *Goal) ContainerStarted() {
+	cine.Cast(goal.Self(), nil, (*Goal).containerStarted)
+}
+
+func (goal *Goal) containerStarted() {
+	// TODO kill existing stats tracker
+	goal.statsTracker = NewStatsTracker(*goal.ContainerId, goal.DockerClient)
+}
+
+func (goal *Goal) SetContainerID(containerID string) {
+	cine.Cast(goal.Self(), nil, (*Goal).setContainerID, containerID)
+}
+
+func (goal *Goal) setContainerID(containerID string) {
+	goal.ContainerId = &containerID
 }
 
 func (goal *Goal) Logs(w io.Writer) error {
@@ -384,14 +328,6 @@ func (goal *Goal) Inspect() (*docker.Container, error) {
 	}
 }
 
-func (goal *Goal) Status() *GoalStatus {
-	responseChannel := make(chan *GoalStatus)
-
-	goal.StatusRequest <- responseChannel
-
-	return <-responseChannel
-}
-
 func ParseRepositoryTag(repos string) (string, string) {
 	n := strings.Index(repos, "@")
 	if n >= 0 {
@@ -408,36 +344,30 @@ func ParseRepositoryTag(repos string) (string, string) {
 	return repos, ""
 }
 
-func NewGoal(goalName string, applicationName string, configs map[string]*GoalConfiguration, dockerClient *docker.Client) *Goal {
+func NewGoal(application *Application, goalName string, applicationName string, configs map[string]*GoalConfiguration, dockerClient *docker.Client) *Goal {
 
 	config := configs[goalName]
 
 	goal := &Goal{
-		Name:                      goalName,
-		ApplicationName:           applicationName,
-		StatusRequest:             make(chan chan *GoalStatus),
-		StartRequest:              make(chan bool),
-		DockerEvent:               make(chan *docker.APIEvents, 100),
-		GoalEvent:                 make(chan GoalEvent, 100),
-		ApplicationStarted:        make(chan map[string]*Goal),
-		RegisterGoalEventListener: make(chan chan GoalEvent),
-		TerminateRequest:          make(chan bool),
-		FetchImageFinished:        make(chan *string),
-		DockerClient:              dockerClient,
-		CurrentStatus:             "not_running",
-		RunAfterStatuses:          make(map[string]string),
-		LinksStatuses:             make(map[string]string),
-		AuthConfig:                config.AuthConfig,
-		transitionLog:             make([]TransitionLogEntry, 0),
-		UpstreamGoalStatuses:      make(map[string]string),
-		SmartRestart:              config.SmartRestart,
+		Actor:                cine.Actor{},
+		application:          application,
+		Name:                 goalName,
+		ApplicationName:      applicationName,
+		DockerClient:         dockerClient,
+		CurrentStatus:        "not_running",
+		RunAfterStatuses:     map[string]string{},
+		LinksStatuses:        map[string]string{},
+		AuthConfig:           config.AuthConfig,
+		transitionLog:        []TransitionLogEntry{},
+		UpstreamGoalStatuses: map[string]string{},
+		SmartRestart:         config.SmartRestart,
 		CreateContainerOptions: docker.CreateContainerOptions{
 			Name: containerName(applicationName, goalName, config.ContainerName),
 			Config: &docker.Config{
 				Image:        config.Image,
 				Cmd:          config.Command,
-				ExposedPorts: make(map[docker.Port]struct{}),
-				Env:          make([]string, 0),
+				ExposedPorts: map[docker.Port]struct{}{},
+				Env:          []string{},
 				Labels:       config.Labels,
 				WorkingDir:   config.WorkingDir,
 				Entrypoint:   config.Entrypoint,
@@ -451,12 +381,12 @@ func NewGoal(goalName string, applicationName string, configs map[string]*GoalCo
 			},
 			HostConfig: &docker.HostConfig{
 				ExtraHosts:     config.ExtraHosts,
-				PortBindings:   make(map[docker.Port][]docker.PortBinding),
-				Binds:          make([]string, 0),
+				PortBindings:   map[docker.Port][]docker.PortBinding{},
+				Binds:          []string{},
 				CapAdd:         config.CapAdd,
 				CapDrop:        config.CapDrop,
 				DNSSearch:      config.DNSSearch,
-				Devices:        make([]docker.Device, 0),
+				Devices:        []docker.Device{},
 				SecurityOpt:    config.SecurityOpt,
 				Memory:         config.MemLimit,
 				MemorySwap:     config.MemSwapLimit,
@@ -599,76 +529,147 @@ func NewGoal(goalName string, applicationName string, configs map[string]*GoalCo
 
 	}
 
-	go goal.Actor()
+	cine.StartActor(goal)
+	cine.Cast(goal.Self(), nil, (*Goal).fetchImage)
 
 	return goal
 }
 
+// TODO move to actor
 func (goal *Goal) TransitionLog() []TransitionLogEntry {
 	return goal.transitionLog
 }
 
+// TODO move to actor
 func (goal *Goal) CurrentStats() *docker.Stats {
 	return goal.statsTracker.MomentaryStats()
 }
 
+// TODO move to actor
 func (goal *Goal) Stats(since time.Time) *Stats {
 	return goal.statsTracker.CurrentStats(since)
 }
 
-func (goal *Goal) Terminate() {
-	goal.TerminateRequest <- true
-}
-
-func (goal *Goal) FetchImage() {
+func (goal *Goal) fetchImage() {
 
 	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
 
-	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{
-		Filter: repo,
-	})
+	go func() {
 
-	if err != nil {
-		errorString := err.Error()
-		goal.FetchImageFinished <- &errorString
-		return
-	}
-
-	for _, image := range images {
-		if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-			goal.FetchImageFinished <- nil
-			return
-		}
-	}
-
-	opts := docker.PullImageOptions{
-		Repository: repo,
-		Tag:        tag,
-	}
-
-	err = goal.DockerClient.PullImage(opts, goal.AuthConfig)
-
-	if err != nil {
-		errorString := err.Error()
-		goal.FetchImageFinished <- &errorString
-		return
-	} else {
-		images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{Filter: repo})
+		images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{
+			Filter: repo,
+		})
 
 		if err != nil {
-			errorString := err.Error()
-			goal.FetchImageFinished <- &errorString
+			goal.FetchImageFailed(err.Error())
 			return
 		}
 
 		for _, image := range images {
 			if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-				goal.FetchImageFinished <- nil
+				goal.fetchImageFinished()
+				return
+			}
+		}
+
+		opts := docker.PullImageOptions{
+			Repository: repo,
+			Tag:        tag,
+		}
+
+		err = goal.DockerClient.PullImage(opts, goal.AuthConfig)
+
+		if err != nil {
+			goal.FetchImageFailed(err.Error())
+			return
+		}
+		images, err = goal.DockerClient.ListImages(docker.ListImagesOptions{Filter: repo})
+
+		if err != nil {
+			goal.FetchImageFailed(err.Error())
+			return
+		}
+
+		for _, image := range images {
+			if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
+				goal.fetchImageFinished()
 				return
 			}
 		}
 		errorMessage := "could not find image"
-		goal.FetchImageFinished <- &errorMessage
+		goal.FetchImageFailed(errorMessage)
+
+	}()
+
+}
+
+func (goal *Goal) SiblingStatusUpdate(goalName, status string) {
+	cine.Cast(goal.Self(), nil, (*Goal).siblingStatusUpdate, goalName, status)
+}
+
+func (goal *Goal) siblingStatusUpdate(goalName, status string) {
+	if _, ok := goal.RunAfterStatuses[goalName]; ok {
+		goal.RunAfterStatuses[goalName] = status
 	}
+	if _, ok := goal.LinksStatuses[goalName]; ok {
+		goal.LinksStatuses[goalName] = status
+	}
+
+	if goal.canRun() {
+		goal.startContainer()
+	} else if goal.shouldStop() {
+		goal.StopContainer()
+	}
+}
+
+func (goal *Goal) Status() *GoalStatus {
+	result, err := cine.Call(goal.Self(), (*Goal).status)
+	if err != nil {
+		panic(err)
+	}
+	return result[0].(*GoalStatus)
+}
+
+func (goal *Goal) status() *GoalStatus {
+	return &GoalStatus{
+		Name:     goal.Name,
+		Status:   goal.CurrentStatus,
+		ExitCode: goal.ExitCode,
+	}
+}
+
+func (goal *Goal) Start() {
+	cine.Cast(goal.Self(), nil, (*Goal).start)
+}
+
+func (goal *Goal) start() {
+	goal.ShouldRun = true
+
+	if goal.canRun() {
+		goal.startContainer()
+	} else {
+		if goal.ImageExists {
+			goal.setCurrentStatus("waiting_for_dependencies")
+		} else {
+			goal.setCurrentStatus("fetching_image")
+		}
+		for name, status := range goal.RunAfterStatuses {
+			if status != "not_running" {
+				goal.application.RequestGoalStart(name)
+			}
+		}
+		for name, status := range goal.LinksStatuses {
+			if status != "running" {
+				goal.application.RequestGoalStart(name)
+			}
+		}
+	}
+
+}
+
+func (goal *Goal) Terminate(errReason error) {
+}
+
+func (goal *Goal) TerminateGoal() {
 
 }

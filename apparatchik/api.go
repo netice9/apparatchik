@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
@@ -332,6 +333,8 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	status, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
+
+	log.Info("application created and status returned")
 
 	if err != nil {
 		respondWithError(err, w)

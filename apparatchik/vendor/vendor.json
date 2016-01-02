@@ -13,11 +13,6 @@
 			"revisionTime": "2015-11-05T15:09:06-06:00"
 		},
 		{
-			"path": "github.com/devsisters/cine",
-			"revision": "eada481ccbf7b7b2fa6f2fe1f1a6086da69b540e",
-			"revisionTime": "2015-09-25T16:31:55+09:00"
-		},
-		{
 			"path": "github.com/djimenez/iconv-go",
 			"revision": "5f6a5a4f0011195c0147545149ad54f4adb54757",
 			"revisionTime": "2013-12-19T12:13:16-05:00"
@@ -136,6 +131,11 @@
 			"path": "github.com/keep94/weblogs/loggers",
 			"revision": "e881c3b62605423ef1d556d234afb8e07ff225f6",
 			"revisionTime": "2014-04-30T06:19:29-07:00"
+		},
+		{
+			"path": "github.com/netice9/cine",
+			"revision": "f70e5e2b427156105108ce83d59a4425f0978a91",
+			"revisionTime": "2016-01-02T05:09:23Z"
 		},
 		{
 			"path": "github.com/pmezard/go-difflib/difflib",

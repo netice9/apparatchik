@@ -7,22 +7,36 @@ import (
 	"os"
 	"time"
 
-	"github.com/devsisters/cine"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/cine"
 )
 
 type Application struct {
 	cine.Actor
 	Name                string
+	Configuration       *ApplicationConfiguration
 	Goals               map[string]*Goal
 	MainGoal            string
 	ApplicationFileName string
+	DockerClient        *docker.Client
 }
 
 type ApplicationStatus struct {
 	Name     string                 `json:"name"`
 	Goals    map[string]*GoalStatus `json:"goals"`
 	MainGoal string                 `json:"main_goal"`
+}
+
+func (app *Application) GoalStatusUpdate(goalName, status string) {
+	cine.Cast(app.Self(), nil, (*Application).goalStatusUpdate, goalName, status)
+}
+
+func (app *Application) goalStatusUpdate(goalName, status string) {
+	for name, goal := range app.Goals {
+		if name != goalName {
+			goal.SiblingStatusUpdate(goalName, status)
+		}
+	}
 }
 
 func (app *Application) Status() *ApplicationStatus {
@@ -153,9 +167,6 @@ func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
 }
 
 func (app *Application) currentStats(goalName string) (*docker.Stats, error) {
-	if app == nil {
-		return nil, applicationNotFoundError
-	}
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.CurrentStats(), nil
 	} else {
@@ -164,8 +175,9 @@ func (app *Application) currentStats(goalName string) (*docker.Stats, error) {
 }
 
 func (app *Application) startGoals() {
-	for _, goal := range app.Goals {
-		goal.ApplicationStarted <- app.Goals
+
+	for goalName := range app.Configuration.Goals {
+		app.Goals[goalName] = NewGoal(app, goalName, app.Name, app.Configuration.Goals, app.DockerClient)
 	}
 
 	app.Goals[app.MainGoal].Start()
@@ -183,18 +195,19 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 
 	ioutil.WriteFile(fileName, json, 0644)
 
-	goals := make(map[string]*Goal)
-
-	for goalName, _ := range applicationConfiguration.Goals {
-		goals[goalName] = NewGoal(goalName, applicationName, applicationConfiguration.Goals, dockerClient)
+	app := &Application{
+		Actor:               cine.Actor{},
+		Name:                applicationName,
+		Configuration:       applicationConfiguration,
+		Goals:               map[string]*Goal{},
+		MainGoal:            applicationConfiguration.MainGoal,
+		ApplicationFileName: fileName,
+		DockerClient:        dockerClient,
 	}
-
-	app := &Application{cine.Actor{}, applicationName, goals, applicationConfiguration.MainGoal, fileName}
 
 	cine.StartActor(app)
 
-	// TODO: cast the actor
-	app.startGoals()
+	cine.Cast(app.Self(), nil, (*Application).startGoals)
 
 	return app
 
@@ -214,6 +227,28 @@ func (app *Application) TerminateApplication() {
 func (app *Application) terminateApplication() {
 	os.Remove(app.ApplicationFileName)
 	for _, goal := range app.Goals {
-		goal.Terminate()
+		goal.TerminateGoal()
+	}
+}
+
+func (app *Application) RequestGoalStart(name string) {
+	cine.Cast(app.Self(), nil, (*Application).requestGoalStart, name)
+}
+
+func (app *Application) requestGoalStart(name string) {
+	if goal, ok := app.Goals[name]; ok {
+		goal.Start()
+	} else {
+		// TODO log
+	}
+}
+
+func (app *Application) HandleDockerEvent(evt *docker.APIEvents) {
+	cine.Cast(app.Self(), nil, (*Application).handleDockerEvent, evt)
+}
+
+func (app *Application) handleDockerEvent(evt *docker.APIEvents) {
+	for _, goal := range app.Goals {
+		goal.HandleDockerEvent(evt)
 	}
 }

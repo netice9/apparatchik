@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/devsisters/cine"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/cine"
 )
 
 var apparatchick *Apparatchik = nil
@@ -55,18 +55,43 @@ func main() {
 
 type Apparatchik struct {
 	cine.Actor
-	applications map[string]*Application
-	dockerClient *docker.Client
+	applications        map[string]*Application
+	dockerClient        *docker.Client
+	dockerEventsChannel chan *docker.APIEvents
 }
 
 func StartApparatchick(dockerClient *docker.Client) *Apparatchik {
-	apparatchick := &Apparatchik{cine.Actor{}, map[string]*Application{}, dockerClient}
+
+	dockerEventsChannel := make(chan *docker.APIEvents, 20)
+	err := dockerClient.AddEventListener(dockerEventsChannel)
+	if err != nil {
+		panic(err)
+	}
+
+	apparatchick := &Apparatchik{cine.Actor{}, map[string]*Application{}, dockerClient, dockerEventsChannel}
 	cine.StartActor(apparatchick)
+
+	go func() {
+		for evt := range dockerEventsChannel {
+			apparatchick.HandleDockerEvent(evt)
+		}
+	}()
+
 	return apparatchick
 
 }
 
 func (p *Apparatchik) Terminate(errReason error) {
+}
+
+func (p *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
+	cine.Cast(p.Self(), nil, (*Apparatchik).handleDockerEvent, evt)
+}
+
+func (p *Apparatchik) handleDockerEvent(evt *docker.APIEvents) {
+	for _, application := range p.applications {
+		application.HandleDockerEvent(evt)
+	}
 }
 
 func (p *Apparatchik) applicationStatus(applicatioName string) (*ApplicationStatus, error) {

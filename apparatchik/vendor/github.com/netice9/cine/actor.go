@@ -25,7 +25,7 @@ type Actor struct {
 	shutdownCh chan bool
 }
 
-const kActorQueueLength int = 1
+const kActorQueueLength int = 255
 
 func (r *Actor) Self() Pid {
 	return r.pid
