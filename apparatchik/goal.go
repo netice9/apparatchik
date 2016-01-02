@@ -192,21 +192,6 @@ func Contains(stringSlice []string, value string) bool {
 	return false
 }
 
-// func (goal *Goal) findImageIdByRepoTag() (*string, error) {
-// 	images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{})
-//
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	for _, image := range images {
-// 		if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-// 			return &image.ID, nil
-// 		}
-// 	}
-// 	return nil, docker.ErrNoSuchImage
-// }
-
 func ContainsString(slice []string, val string) bool {
 	for _, c := range slice {
 		if c == val {
@@ -668,8 +653,14 @@ func (goal *Goal) start() {
 }
 
 func (goal *Goal) Terminate(errReason error) {
+	if goal.CurrentStatus == "running" {
+		goal.StopContainer()
+	}
+
+	// TODO stop tracker
+
 }
 
 func (goal *Goal) TerminateGoal() {
-
+	cine.Stop(goal.Self())
 }
