@@ -82,6 +82,10 @@ func StartApparatchick(dockerClient *docker.Client) *Apparatchik {
 }
 
 func (p *Apparatchik) Terminate(errReason error) {
+	for _, application := range p.applications {
+		application.TerminateApplication()
+	}
+	p.applications = map[string]*Application{}
 }
 
 func (p *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {

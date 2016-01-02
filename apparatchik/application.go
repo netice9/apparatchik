@@ -214,22 +214,15 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 
 }
 
-func (p *Application) Terminate(errReason error) {
-}
-
-func (app *Application) TerminateApplication() {
-	_, err := cine.Call(app.Self(), (*Application).terminateApplication)
-
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (app *Application) terminateApplication() {
+func (app *Application) Terminate(errReason error) {
 	os.Remove(app.ApplicationFileName)
 	for _, goal := range app.Goals {
 		goal.TerminateGoal()
 	}
+}
+
+func (app *Application) TerminateApplication() {
+	cine.Stop(app.Self())
 }
 
 func (app *Application) RequestGoalStart(name string) {
