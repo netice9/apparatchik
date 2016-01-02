@@ -34,8 +34,9 @@ end
 Then(/^the service should have current stats$/) do
   timed_retry do
     expect(goal_current_stats('service1').code).to eq(200)
+    expect(goal_current_stats('service1').to_h).to have_key('read')
   end
 
-  expect(goal_current_stats('service1').to_h).to have_key('read')
+
 
 end

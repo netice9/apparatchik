@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
@@ -17,6 +19,12 @@ import (
 type ErrorResponse struct {
 	Reason string `json:"reason"`
 }
+
+var (
+	applicationAlreadyExistsError = errors.New("Application already exists")
+	applicationNotFoundError      = errors.New("Application not found")
+	goalNotFoundError             = errors.New("Goal not found")
+)
 
 func startHttpServer() {
 	router := httprouter.New()
@@ -40,21 +48,17 @@ func startHttpServer() {
 
 func GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	application, err := apparatchick.ApplicationByName(applicationName)
+	status, err := apparatchick.ApplicationStatus(applicationName)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err == nil {
-		status := application.Status()
 		w.WriteHeader(200)
 		if err := json.NewEncoder(w).Encode(status); err != nil {
 			panic(err)
 		}
 	} else {
-		w.WriteHeader(404)
-		e := ErrorResponse{Reason: "application not found"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
-			panic(err)
-		}
+		respondWithError(err, w)
+		return
 	}
 }
 
@@ -173,47 +177,55 @@ func RedirectToIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 
 func DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	// TODO handle error case
-	apparatchick.Terminate(applicationName)
+
+	err := apparatchick.TerminateApplication(applicationName)
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
+
 	w.WriteHeader(204)
+
 }
 
 func GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(apparatchick.ApplicatioNames()); err != nil {
 		panic(err)
 	}
+
 }
 
 func GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
+	application, err := apparatchick.ApplicationByName(applicationName)
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(200)
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
 	application.Logs(goalName, w)
 }
 
 func GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
-	transitionLog, err := application.TransitionLog(goalName)
+
+	transitionLog, err := apparatchick.GoalTransitionLog(applicationName, goalName)
+
 	if err != nil {
-		panic(err)
+		respondWithError(err, w)
+		return
 	}
+
 	if transitionLog != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
 		if err := json.NewEncoder(w).Encode(transitionLog); err != nil {
-			panic(err)
-		}
-	} else {
-		w.WriteHeader(404)
-		e := ErrorResponse{Reason: "goal not found"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
 			panic(err)
 		}
 	}
@@ -230,50 +242,47 @@ func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 		sinceTime = time.Time{}
 	}
 
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
+	application, err := apparatchick.ApplicationByName(applicationName)
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
 
 	stats, err := application.Stats(goalName, sinceTime)
 	if err != nil {
-		panic(err)
+		respondWithError(err, w)
+		return
 	}
-	if stats != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		if err := json.NewEncoder(w).Encode(stats); err != nil {
-			panic(err)
-		}
-	} else {
-		w.WriteHeader(404)
-		e := ErrorResponse{Reason: "goal not found"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
-			panic(err)
-		}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		panic(err)
 	}
 }
 
 func GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
+
+	application, err := apparatchick.ApplicationByName(applicationName)
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
 
 	stats, err := application.CurrentStats(goalName)
 	if err != nil {
-		panic(err)
+		respondWithError(err, w)
+		return
 	}
-	if stats != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		if err := json.NewEncoder(w).Encode(stats); err != nil {
-			panic(err)
-		}
-	} else {
-		w.WriteHeader(404)
-		e := ErrorResponse{Reason: "goal not found"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
-			panic(err)
-		}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		panic(err)
 	}
 
 }
@@ -282,25 +291,24 @@ func GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 
-	// TODO handle error
-	application, _ := apparatchick.ApplicationByName(applicationName)
+	application, err := apparatchick.ApplicationByName(applicationName)
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
 
 	container, err := application.Inspect(goalName)
+
 	if err != nil {
-		panic(err)
+		respondWithError(err, w)
+		return
 	}
-	if container != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		if err := json.NewEncoder(w).Encode(container); err != nil {
-			panic(err)
-		}
-	} else {
-		w.WriteHeader(404)
-		e := ErrorResponse{Reason: "goal not found"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
-			panic(err)
-		}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	if err := json.NewEncoder(w).Encode(container); err != nil {
+		panic(err)
 	}
 
 }
@@ -309,54 +317,51 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	applicationName := ps.ByName("applicationName")
 	decoder := json.NewDecoder(r.Body)
 
-	// TODO handle error
-	_, err := apparatchick.ApplicationByName(applicationName)
+	var applicationConfiguration ApplicationConfiguration
+	err := decoder.Decode(&applicationConfiguration)
 
-	if err == nil {
-		w.WriteHeader(409)
-		e := ErrorResponse{Reason: "application already exists"}
-		if err := json.NewEncoder(w).Encode(e); err != nil {
-			panic(err)
-		}
-	} else {
-
-		var applicationConfiguration ApplicationConfiguration
-		err := decoder.Decode(&applicationConfiguration)
-
-		if err != nil {
-			w.WriteHeader(400)
-			e := ErrorResponse{Reason: err.Error()}
-			if err := json.NewEncoder(w).Encode(e); err != nil {
-				panic(err)
-			}
-			return
-		}
-
-		err = applicationConfiguration.Validate()
-
-		if err != nil {
-			w.WriteHeader(400)
-			e := ErrorResponse{Reason: err.Error()}
-			if err := json.NewEncoder(w).Encode(e); err != nil {
-				panic(err)
-			}
-			return
-		}
-
-		log.Println("about to create", applicationName, applicationConfiguration)
-		// TODO handle error to simplify above if
-		app, _ := apparatchick.NewApplication(applicationName, &applicationConfiguration)
-
-		log.Println("created")
-
-		status := app.Status()
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(201)
-
-		if err := json.NewEncoder(w).Encode(status); err != nil {
-			panic(err)
-		}
+	if err != nil {
+		respondWithError(err, w)
+		return
 	}
 
+	err = applicationConfiguration.Validate()
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
+
+	status, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
+
+	log.Info("application created and status returned")
+
+	if err != nil {
+		respondWithError(err, w)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		panic(err)
+	}
+
+}
+
+func respondWithError(err error, w http.ResponseWriter) {
+	code := 500
+	if err == applicationNotFoundError || err == goalNotFoundError {
+		code = 404
+	} else if err == applicationAlreadyExistsError {
+		code = 409
+	}
+	w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json")
+	e := ErrorResponse{Reason: err.Error()}
+	if err := json.NewEncoder(w).Encode(e); err != nil {
+		panic(err)
+	}
+	return
 }
