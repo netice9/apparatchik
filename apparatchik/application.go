@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/cine"
 )
@@ -239,7 +240,7 @@ func (app *Application) requestGoalStart(name string) {
 	if goal, ok := app.Goals[name]; ok {
 		goal.Start()
 	} else {
-		// TODO log
+		log.Error("Application ", app.Name, " requested start of uknown goal ", name)
 	}
 }
 
