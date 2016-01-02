@@ -130,6 +130,29 @@ func (app *Application) stats(goalName string, since time.Time) (*Stats, error) 
 }
 
 func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
+
+	if app == nil {
+		return nil, applicationNotFoundError
+	}
+
+	res, err := cine.Call(app.Self(), (*Application).currentStats, goalName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	stats := (*docker.Stats)(nil)
+
+	stats, _ = res[0].(*docker.Stats)
+
+	err2 := (error)(nil)
+
+	err2, _ = res[1].(error)
+
+	return stats, err2
+}
+
+func (app *Application) currentStats(goalName string) (*docker.Stats, error) {
 	if app == nil {
 		return nil, applicationNotFoundError
 	}
