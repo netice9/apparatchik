@@ -653,9 +653,7 @@ func (goal *Goal) start() {
 }
 
 func (goal *Goal) Terminate(errReason error) {
-	if goal.CurrentStatus == "running" {
-		goal.StopContainer()
-	}
+	goal.terminateGoal()
 
 	// TODO stop tracker
 
