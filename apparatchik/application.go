@@ -59,12 +59,12 @@ func (app *Application) Logs(goalName string, w io.Writer) error {
 
 func (app *Application) Inspect(goalName string) (*docker.Container, error) {
 	if app == nil {
-		return nil, nil
+		return nil, applicationNotFoundError
 	}
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.Inspect()
 	} else {
-		return nil, nil
+		return nil, goalNotFoundError
 	}
 }
 
@@ -94,11 +94,16 @@ func (app *Application) transitionLog(goalName string) ([]TransitionLogEntry, er
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.TransitionLog(), nil
 	} else {
-		return nil, nil
+		return nil, goalNotFoundError
 	}
 }
 
 func (app *Application) Stats(goalName string, since time.Time) (*Stats, error) {
+
+	if app == nil {
+		return nil, applicationNotFoundError
+	}
+
 	res, err := cine.Call(app.Self(), (*Application).stats, goalName, since)
 
 	if err != nil {
@@ -117,25 +122,21 @@ func (app *Application) Stats(goalName string, since time.Time) (*Stats, error) 
 }
 
 func (app *Application) stats(goalName string, since time.Time) (*Stats, error) {
-	if app == nil {
-		return nil, nil
-	}
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.Stats(since), nil
 	} else {
-		return nil, nil
+		return nil, goalNotFoundError
 	}
 }
 
-// TODO: get the container id from goal and do the docker call
 func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
 	if app == nil {
-		return nil, nil
+		return nil, applicationNotFoundError
 	}
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.CurrentStats(), nil
 	} else {
-		return nil, nil
+		return nil, goalNotFoundError
 	}
 }
 
