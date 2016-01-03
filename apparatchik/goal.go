@@ -534,8 +534,18 @@ func (goal *Goal) getTransitionLog() []TransitionLogEntry {
 	return goal.transitionLog
 }
 
-// TODO move to actor
 func (goal *Goal) CurrentStats() *docker.Stats {
+	result, err := cine.Call(goal.Self(), (*Goal).currentStats)
+	if err != nil {
+		panic(err)
+	}
+	if result[0] == nil {
+		return nil
+	}
+	return result[0].(*docker.Stats)
+}
+
+func (goal *Goal) currentStats() *docker.Stats {
 	return goal.statsTracker.MomentaryStats()
 }
 
