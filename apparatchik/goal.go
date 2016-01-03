@@ -36,8 +36,7 @@ type Goal struct {
 	ShouldRun            bool
 	ImageExists          bool
 	AuthConfig           docker.AuthConfiguration
-	// GoalEventListeners   []chan GoalEvent
-	SmartRestart bool
+	SmartRestart         bool
 
 	CreateContainerOptions docker.CreateContainerOptions
 
@@ -294,6 +293,7 @@ func (goal *Goal) setContainerID(containerID string) {
 	goal.ContainerId = &containerID
 }
 
+// TODO move up the stream - Application?, consider async
 func (goal *Goal) Logs(w io.Writer) error {
 	return goal.DockerClient.Logs(docker.LogsOptions{
 		Container:    *goal.ContainerId,
@@ -305,6 +305,7 @@ func (goal *Goal) Logs(w io.Writer) error {
 	})
 }
 
+// TODO move this down the chain - application level
 func (goal *Goal) Inspect() (*docker.Container, error) {
 	if goal.ContainerId != nil {
 		return goal.DockerClient.InspectContainer(*goal.ContainerId)
@@ -520,8 +521,16 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 	return goal
 }
 
-// TODO move to actor
 func (goal *Goal) TransitionLog() []TransitionLogEntry {
+	result, err := cine.Call(goal.Self(), (*Goal).getTransitionLog)
+	if err != nil {
+		panic(err)
+	}
+
+	return result[0].([]TransitionLogEntry)
+}
+
+func (goal *Goal) getTransitionLog() []TransitionLogEntry {
 	return goal.transitionLog
 }
 
