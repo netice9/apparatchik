@@ -113,8 +113,8 @@ When(/^I have a task depending on a service that will terminate with service mar
   expect(response.code).to eq(201)
 end
 
-Then(/^the task should be executed multiple times$/) do
+Then(/^the task should not be executed multiple times$/) do
   timed_retry retries: 30 do
-    expect(transition_log('task1').map{|x| x['status']}.select{|x| ['terminated', 'running'].include?(x)}).to eq(['running','terminated', 'running', 'terminated'])
+    expect(transition_log('task1').map{|x| x['status']}.select{|x| ['terminated', 'running'].include?(x)}).to eq(['running','terminated'])
   end
 end

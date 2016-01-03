@@ -160,7 +160,7 @@ func (goal *Goal) canRun() bool {
 	}
 	return goal.CurrentStatus == "waiting_for_dependencies" ||
 		goal.CurrentStatus == "fetching_image" ||
-		goal.CurrentStatus == "terminated" ||
+		// goal.CurrentStatus == "terminated" ||
 		(goal.CurrentStatus == "failed" && goal.SmartRestart)
 
 }
@@ -731,8 +731,6 @@ func (goal *Goal) HandleStatsEvent(stats *docker.Stats) {
 }
 
 func (goal *Goal) hanleStatsEvent(stats *docker.Stats) {
-
-	log.Info("handling stats event ", stats)
 
 	if goal.lastSample == nil {
 		goal.lastSample = stats

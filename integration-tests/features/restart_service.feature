@@ -16,4 +16,4 @@ Scenario: Restarting dependent service
 
 Scenario: Restarting dependent task
   When I have a task depending on a service that will terminate with service marked to restart
-  Then the task should be executed multiple times
+  Then the task should not be executed multiple times
