@@ -11,6 +11,18 @@ import (
 	"github.com/netice9/cine"
 )
 
+const trackerHistorySize = 120
+
+type Sample struct {
+	Value uint64    `json:"value"`
+	Time  time.Time `json:"time"`
+}
+
+type Stats struct {
+	CpuStats []Sample `json:"cpu_stats"`
+	MemStats []Sample `json:"mem_stats"`
+}
+
 type TransitionLogEntry struct {
 	Time   time.Time `json:"time"`
 	Status string    `json:"status"`
@@ -45,7 +57,10 @@ type Goal struct {
 
 	transitionLog []TransitionLogEntry
 
-	statsTracker *StatsTracker
+	// statsTracker *StatsTracker
+
+	stats      Stats
+	lastSample *docker.Stats
 }
 
 type GoalEvent struct {
@@ -70,7 +85,7 @@ func (goal *Goal) SetCurrentStatus(status string) {
 
 func (goal *Goal) setCurrentStatus(status string) {
 
-	log.Info("setting current status of goal ", goal.Name, " to ", status)
+	log.Debug("setting current status of goal ", goal.Name, " to ", status)
 
 	goal.transitionLog = append(goal.transitionLog, TransitionLogEntry{Time: time.Now(), Status: status})
 
@@ -281,8 +296,23 @@ func (goal *Goal) ContainerStarted() {
 }
 
 func (goal *Goal) containerStarted() {
-	// TODO kill existing stats tracker
-	goal.statsTracker = NewStatsTracker(*goal.ContainerId, goal.DockerClient)
+
+	ch := make(chan *docker.Stats)
+
+	go func() {
+		go func() {
+			for stat := range ch {
+				goal.HandleStatsEvent(stat)
+			}
+		}()
+
+		goal.DockerClient.Stats(docker.StatsOptions{
+			ID:     *goal.ContainerId,
+			Stats:  ch,
+			Stream: true,
+		})
+	}()
+
 }
 
 func (goal *Goal) SetContainerID(containerID string) {
@@ -546,12 +576,26 @@ func (goal *Goal) CurrentStats() *docker.Stats {
 }
 
 func (goal *Goal) currentStats() *docker.Stats {
-	return goal.statsTracker.MomentaryStats()
+	return goal.lastSample
 }
 
-// TODO move to actor
 func (goal *Goal) Stats(since time.Time) *Stats {
-	return goal.statsTracker.CurrentStats(since)
+	result, err := cine.Call(goal.Self(), (*Goal)._stats, since)
+	if err != nil {
+		panic(err)
+	}
+	if result[0] == nil {
+		return nil
+	}
+	return result[0].(*Stats)
+
+}
+
+func (goal *Goal) _stats(since time.Time) *Stats {
+	return &Stats{
+		CpuStats: LimitSampleByTime(goal.stats.CpuStats, since),
+		MemStats: LimitSampleByTime(goal.stats.MemStats, since),
+	}
 }
 
 func (goal *Goal) fetchImage() {
@@ -680,4 +724,42 @@ func (goal *Goal) Terminate(errReason error) {
 
 func (goal *Goal) TerminateGoal() {
 	cine.Stop(goal.Self())
+}
+
+func (goal *Goal) HandleStatsEvent(stats *docker.Stats) {
+	cine.Cast(goal.Self(), nil, (*Goal).hanleStatsEvent, stats)
+}
+
+func (goal *Goal) hanleStatsEvent(stats *docker.Stats) {
+
+	log.Info("handling stats event ", stats)
+
+	if goal.lastSample == nil {
+		goal.lastSample = stats
+	} else {
+		cpuDiff := stats.CPUStats.CPUUsage.TotalUsage - goal.lastSample.CPUStats.CPUUsage.TotalUsage
+		memory := stats.MemoryStats.Usage
+
+		goal.stats.CpuStats = append(goal.stats.CpuStats, Sample{Value: cpuDiff, Time: stats.Read})
+		if len(goal.stats.CpuStats) > trackerHistorySize {
+			goal.stats.CpuStats = goal.stats.CpuStats[1:]
+		}
+
+		goal.stats.MemStats = append(goal.stats.MemStats, Sample{Value: memory, Time: stats.Read})
+		if len(goal.stats.MemStats) > trackerHistorySize {
+			goal.stats.MemStats = goal.stats.MemStats[1:]
+		}
+		goal.lastSample = stats
+	}
+
+}
+
+func LimitSampleByTime(samples []Sample, since time.Time) []Sample {
+	result := []Sample{}
+	for _, sample := range samples {
+		if sample.Time.After(since) {
+			result = append(result, sample)
+		}
+	}
+	return result
 }
