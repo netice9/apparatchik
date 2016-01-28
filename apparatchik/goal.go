@@ -602,22 +602,20 @@ func (goal *Goal) fetchImage() {
 
 	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
 
+	fmt.Printf("Repo: %s\n", repo)
+
 	go func() {
 
-		images, err := goal.DockerClient.ListImages(docker.ListImagesOptions{
-			Filter: repo,
-		})
+		_, err := goal.DockerClient.InspectImage(goal.CreateContainerOptions.Config.Image)
 
-		if err != nil {
+		if err != nil && err != docker.ErrNoSuchImage {
 			goal.FetchImageFailed(err.Error())
 			return
 		}
 
-		for _, image := range images {
-			if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-				goal.fetchImageFinished()
-				return
-			}
+		if err == nil {
+			goal.FetchImageFinished()
+			return
 		}
 
 		opts := docker.PullImageOptions{
@@ -631,21 +629,8 @@ func (goal *Goal) fetchImage() {
 			goal.FetchImageFailed(err.Error())
 			return
 		}
-		images, err = goal.DockerClient.ListImages(docker.ListImagesOptions{Filter: repo})
 
-		if err != nil {
-			goal.FetchImageFailed(err.Error())
-			return
-		}
-
-		for _, image := range images {
-			if Contains(image.RepoTags, goal.CreateContainerOptions.Config.Image) {
-				goal.fetchImageFinished()
-				return
-			}
-		}
-		errorMessage := "could not find image"
-		goal.FetchImageFailed(errorMessage)
+		goal.FetchImageFinished()
 
 	}()
 
