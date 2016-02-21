@@ -30,16 +30,10 @@ The recomended way of startin Aparatchick is:
 docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 --name=apparatchik -d netice9/apparatchik:0.1.1
 ```
 
-I you would like to enable HTTP basic authentication, set AUTH_USERNAME and AUTH_PASSWORD environment variables when starting the container:
-
-```bash
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 -e AUTH_USERNAME=admin -e AUTH_PASSWORD=somepassword --name=apparatchik -d netice9/apparatchik:0.1.1
-```
-
 If you would like to add Basic Auth to the HTTP, set AUTH_USERNAME and AUTH_PASSWORD environment variables when starting Aparatchick:
 
 ```bash
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /applications:/applications -p 8080:8080 --name=apparatchik -e AUTH_USERNAME=admin -e AUTH_PASSWORD=adminspassword -d netice9/apparatchik:0.0.1
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 -e AUTH_USERNAME=admin -e AUTH_PASSWORD=somepassword --name=apparatchik -d netice9/apparatchik:0.1.1
 ```
 
 ## Web interface
