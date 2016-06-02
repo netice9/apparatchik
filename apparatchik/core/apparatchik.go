@@ -1,57 +1,11 @@
-package main
+package core
 
 import (
-	"encoding/json"
 	"errors"
-	"io/ioutil"
-	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/cine"
 )
-
-var apparatchick *Apparatchik = nil
-
-func main() {
-	dockerClient, err := docker.NewClientFromEnv()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	cine.Init("localhost:8000")
-
-	apparatchick = StartApparatchick(dockerClient)
-
-	files, err := ioutil.ReadDir("/applications")
-
-	if err != nil {
-		panic(err)
-	}
-
-	for _, file := range files {
-		name := file.Name()
-		if strings.HasSuffix(name, ".json") {
-			applicationName := name[0 : len(name)-len(".json")]
-			data, err := ioutil.ReadFile("/applications/" + name)
-			if err != nil {
-				panic(err)
-			}
-
-			config := ApplicationConfiguration{}
-
-			if err = json.Unmarshal(data, &config); err != nil {
-				panic(err)
-			}
-
-			apparatchick.NewApplication(applicationName, &config)
-
-		}
-
-	}
-
-	startHttpServer()
-}
 
 type Apparatchik struct {
 	cine.Actor
@@ -107,7 +61,7 @@ func (p *Apparatchik) applicationStatus(applicatioName string) (*ApplicationStat
 }
 
 func (p *Apparatchik) ApplicationStatus(applicatioName string) (*ApplicationStatus, error) {
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).applicationStatus, applicatioName)
+	res, err := cine.Call(p.Self(), (*Apparatchik).applicationStatus, applicatioName)
 
 	if err != nil {
 		panic(err)
@@ -138,7 +92,7 @@ func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*
 }
 
 func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).newApplication, name, config)
+	res, err := cine.Call(ap.Self(), (*Apparatchik).newApplication, name, config)
 
 	if err != nil {
 		panic(err)
@@ -160,7 +114,7 @@ func (ap *Apparatchik) newApplication(name string, config *ApplicationConfigurat
 	_, ok := ap.applications[name]
 
 	if ok {
-		return nil, applicationAlreadyExistsError
+		return nil, ErrApplicationAlreadyExists
 	}
 
 	application := NewApplication(name, config, ap.dockerClient)
@@ -170,7 +124,7 @@ func (ap *Apparatchik) newApplication(name string, config *ApplicationConfigurat
 
 func (ap *Apparatchik) TerminateApplication(applicationName string) error {
 
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).terminateApplication, applicationName)
+	res, err := cine.Call(ap.Self(), (*Apparatchik).terminateApplication, applicationName)
 
 	if err != nil {
 		panic(err)
@@ -198,7 +152,7 @@ func (ap *Apparatchik) terminateApplication(applicationName string) error {
 
 func (ap *Apparatchik) ApplicatioNames() []string {
 
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).applicatioNames)
+	res, err := cine.Call(ap.Self(), (*Apparatchik).applicatioNames)
 
 	if err != nil {
 		panic(err)
@@ -219,13 +173,13 @@ func (ap *Apparatchik) applicatioNames() []string {
 func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
 	application, ok := ap.applications[name]
 	if !ok {
-		return nil, applicationNotFoundError
+		return nil, ErrApplicationNotFound
 	}
 	return application, nil
 }
 
 func (ap *Apparatchik) GoalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
-	res, err := cine.Call(apparatchick.Self(), (*Apparatchik).goalTransitionLog, applicationName, goalName)
+	res, err := cine.Call(ap.Self(), (*Apparatchik).goalTransitionLog, applicationName, goalName)
 
 	if err != nil {
 		panic(err)

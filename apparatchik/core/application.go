@@ -1,7 +1,8 @@
-package main
+package core
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -10,6 +11,12 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/cine"
+)
+
+var (
+	ErrApplicationAlreadyExists = errors.New("Application already exists")
+	ErrApplicationNotFound      = errors.New("Application not found")
+	ErrGoalNotFound             = errors.New("Goal not found")
 )
 
 type Application struct {
@@ -74,18 +81,18 @@ func (app *Application) Logs(goalName string, w io.Writer) error {
 
 func (app *Application) Inspect(goalName string) (*docker.Container, error) {
 	if app == nil {
-		return nil, applicationNotFoundError
+		return nil, ErrApplicationNotFound
 	}
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.Inspect()
 	} else {
-		return nil, goalNotFoundError
+		return nil, ErrGoalNotFound
 	}
 }
 
 func (app *Application) TransitionLog(goalName string) ([]TransitionLogEntry, error) {
 	if app == nil {
-		return nil, applicationNotFoundError
+		return nil, ErrApplicationNotFound
 	}
 
 	res, err := cine.Call(app.Self(), (*Application).transitionLog, goalName)
@@ -109,14 +116,14 @@ func (app *Application) transitionLog(goalName string) ([]TransitionLogEntry, er
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.TransitionLog(), nil
 	} else {
-		return nil, goalNotFoundError
+		return nil, ErrGoalNotFound
 	}
 }
 
 func (app *Application) Stats(goalName string, since time.Time) (*Stats, error) {
 
 	if app == nil {
-		return nil, applicationNotFoundError
+		return nil, ErrApplicationNotFound
 	}
 
 	res, err := cine.Call(app.Self(), (*Application).stats, goalName, since)
@@ -140,14 +147,14 @@ func (app *Application) stats(goalName string, since time.Time) (*Stats, error) 
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.Stats(since), nil
 	} else {
-		return nil, goalNotFoundError
+		return nil, ErrGoalNotFound
 	}
 }
 
 func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
 
 	if app == nil {
-		return nil, applicationNotFoundError
+		return nil, ErrApplicationNotFound
 	}
 
 	res, err := cine.Call(app.Self(), (*Application).currentStats, goalName)
@@ -171,7 +178,7 @@ func (app *Application) currentStats(goalName string) (*docker.Stats, error) {
 	if goal, ok := app.Goals[goalName]; ok {
 		return goal.CurrentStats(), nil
 	} else {
-		return nil, goalNotFoundError
+		return nil, ErrGoalNotFound
 	}
 }
 

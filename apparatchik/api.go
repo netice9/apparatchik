@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/netice9/apparatchik/apparatchik/core"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
@@ -20,35 +20,38 @@ type ErrorResponse struct {
 	Reason string `json:"reason"`
 }
 
-var (
-	applicationAlreadyExistsError = errors.New("Application already exists")
-	applicationNotFoundError      = errors.New("Application not found")
-	goalNotFoundError             = errors.New("Goal not found")
-)
+type API struct {
+	apparatchick *core.Apparatchik
+	dockerClient *docker.Client
+}
 
-func startHttpServer() {
+func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client) {
+	api := &API{
+		apparatchick: apparatchick,
+		dockerClient: dockerClient,
+	}
 	router := httprouter.New()
-	router.PUT("/api/v1.0/applications/:applicationName", CreateApplication)
-	router.DELETE("/api/v1.0/applications/:applicationName", DeleteApplication)
+	router.PUT("/api/v1.0/applications/:applicationName", api.CreateApplication)
+	router.DELETE("/api/v1.0/applications/:applicationName", api.DeleteApplication)
 
-	router.GET("/api/v1.0/applications", GetApplications)
-	router.GET("/api/v1.0/applications/:applicationName", GetApplication)
+	router.GET("/api/v1.0/applications", api.GetApplications)
+	router.GET("/api/v1.0/applications/:applicationName", api.GetApplication)
 
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/logs", GetGoalLogs)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/transition_log", GetGoalTransitionLog)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/stats", GetGoalStats)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/current_stats", GetGoalCurrentStats)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", GetGoalInspect)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", ExecSocket)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/logs", api.GetGoalLogs)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/transition_log", api.GetGoalTransitionLog)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/stats", api.GetGoalStats)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/current_stats", api.GetGoalCurrentStats)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
+	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
 	router.NotFound = http.FileServer(http.Dir("public"))
 
 	handler := context.ClearHandler(NewAuthHandler(router))
 	http.ListenAndServe(":8080", handler)
 }
 
-func GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
-	status, err := apparatchick.ApplicationStatus(applicationName)
+	status, err := a.apparatchick.ApplicationStatus(applicationName)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err == nil {
@@ -90,12 +93,12 @@ func (conn WSReaderWriter) Write(p []byte) (n int, err error) {
 	return len(p), err
 }
 
-func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 
-	containerID, err := apparatchick.GetContainerIDForGoal(applicationName, goalName)
+	containerID, err := a.apparatchick.GetContainerIDForGoal(applicationName, goalName)
 
 	if err != nil {
 		log.Panic(err)
@@ -107,7 +110,7 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		command = "/bin/sh"
 	}
 
-	exec, err := apparatchick.dockerClient.CreateExec(docker.CreateExecOptions{
+	exec, err := a.dockerClient.CreateExec(docker.CreateExecOptions{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -156,7 +159,7 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}()
 
 	// TODO encapsulate into Apparatchik
-	apparatchick.dockerClient.StartExec(exec.ID, docker.StartExecOptions{
+	a.dockerClient.StartExec(exec.ID, docker.StartExecOptions{
 		Detach:       false,
 		Tty:          true,
 		InputStream:  stdinPipeReader,
@@ -171,14 +174,14 @@ func ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 }
 
-func RedirectToIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) RedirectToIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	http.Redirect(w, r, "/index.html", 301)
 }
 
-func DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 
-	err := apparatchick.TerminateApplication(applicationName)
+	err := a.apparatchick.TerminateApplication(applicationName)
 
 	if err != nil {
 		respondWithError(err, w)
@@ -189,19 +192,19 @@ func DeleteApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 }
 
-func GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetApplications(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(apparatchick.ApplicatioNames()); err != nil {
+	if err := json.NewEncoder(w).Encode(a.apparatchick.ApplicatioNames()); err != nil {
 		panic(err)
 	}
 
 }
 
-func GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
-	application, err := apparatchick.ApplicationByName(applicationName)
+	application, err := a.apparatchick.ApplicationByName(applicationName)
 	if err != nil {
 		respondWithError(err, w)
 		return
@@ -211,11 +214,11 @@ func GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	application.Logs(goalName, w)
 }
 
-func GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 
-	transitionLog, err := apparatchick.GoalTransitionLog(applicationName, goalName)
+	transitionLog, err := a.apparatchick.GoalTransitionLog(applicationName, goalName)
 
 	if err != nil {
 		respondWithError(err, w)
@@ -231,7 +234,7 @@ func GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.
 	}
 }
 
-func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 	sinceString := r.FormValue("since")
@@ -242,7 +245,7 @@ func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 		sinceTime = time.Time{}
 	}
 
-	application, err := apparatchick.ApplicationByName(applicationName)
+	application, err := a.apparatchick.ApplicationByName(applicationName)
 
 	if err != nil {
 		respondWithError(err, w)
@@ -262,11 +265,11 @@ func GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 	}
 }
 
-func GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 
-	application, err := apparatchick.ApplicationByName(applicationName)
+	application, err := a.apparatchick.ApplicationByName(applicationName)
 
 	if err != nil {
 		respondWithError(err, w)
@@ -287,11 +290,11 @@ func GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.P
 
 }
 
-func GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	goalName := ps.ByName("goalName")
 
-	application, err := apparatchick.ApplicationByName(applicationName)
+	application, err := a.apparatchick.ApplicationByName(applicationName)
 
 	if err != nil {
 		respondWithError(err, w)
@@ -313,11 +316,11 @@ func GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 }
 
-func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *API) CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	applicationName := ps.ByName("applicationName")
 	decoder := json.NewDecoder(r.Body)
 
-	var applicationConfiguration ApplicationConfiguration
+	var applicationConfiguration core.ApplicationConfiguration
 	err := decoder.Decode(&applicationConfiguration)
 
 	if err != nil {
@@ -332,7 +335,7 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	status, err := apparatchick.NewApplication(applicationName, &applicationConfiguration)
+	status, err := a.apparatchick.NewApplication(applicationName, &applicationConfiguration)
 
 	log.Info("application created and status returned")
 
@@ -352,9 +355,9 @@ func CreateApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 func respondWithError(err error, w http.ResponseWriter) {
 	code := 500
-	if err == applicationNotFoundError || err == goalNotFoundError {
+	if err == core.ErrApplicationNotFound || err == core.ErrGoalNotFound {
 		code = 404
-	} else if err == applicationAlreadyExistsError {
+	} else if err == core.ErrApplicationAlreadyExists {
 		code = 409
 	}
 	w.WriteHeader(code)
