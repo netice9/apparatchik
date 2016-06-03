@@ -6,11 +6,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/cine"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 )
 
 type Application struct {
-	cine.Actor
+	sync.Mutex
 	Name                string
 	Configuration       *ApplicationConfiguration
 	Goals               map[string]*Goal
@@ -35,160 +35,104 @@ type ApplicationStatus struct {
 	MainGoal string                 `json:"main_goal"`
 }
 
-func (app *Application) GoalStatusUpdate(goalName, status string) {
-	cine.Cast(app.Self(), nil, (*Application).goalStatusUpdate, goalName, status)
-}
-
-func (app *Application) goalStatusUpdate(goalName, status string) {
-	for name, goal := range app.Goals {
+func (a *Application) GoalStatusUpdate(goalName, status string) {
+	a.Lock()
+	defer a.Unlock()
+	for name, goal := range a.Goals {
 		if name != goalName {
 			goal.SiblingStatusUpdate(goalName, status)
 		}
 	}
 }
 
-func (app *Application) Status() *ApplicationStatus {
-	res, err := cine.Call(app.Self(), (*Application).status)
+func (a *Application) copyGoals() map[string]*Goal {
+	a.Lock()
+	defer a.Unlock()
+	goals := map[string]*Goal{}
 
-	if err != nil {
-		panic(err)
+	for name, goal := range a.Goals {
+		goals[name] = goal
 	}
 
-	status := (*ApplicationStatus)(nil)
-
-	status, _ = res[0].(*ApplicationStatus)
-
-	return status
+	return goals
 }
 
-func (app *Application) status() *ApplicationStatus {
-	goals := map[string]*GoalStatus{}
+func (a *Application) Status() *ApplicationStatus {
+	goals := a.copyGoals()
+	goalStats := map[string]*GoalStatus{}
 
-	for name, goal := range app.Goals {
-		goals[name] = goal.Status()
+	for name, goal := range goals {
+		goalStats[name] = goal.Status()
 	}
 
 	return &ApplicationStatus{
-		Name:     app.Name,
-		Goals:    goals,
-		MainGoal: app.MainGoal,
+		Name:     a.Name,
+		Goals:    goalStats,
+		MainGoal: a.MainGoal,
 	}
 }
 
-func (app *Application) Logs(goalName string, w io.Writer) error {
-	return app.Goals[goalName].Logs(w)
-}
+func (a *Application) goalByName(goalName string) (*Goal, error) {
+	a.Lock()
+	defer a.Unlock()
 
-func (app *Application) Inspect(goalName string) (*docker.Container, error) {
-	if app == nil {
-		return nil, ErrApplicationNotFound
-	}
-	if goal, ok := app.Goals[goalName]; ok {
-		return goal.Inspect()
-	} else {
+	goal, found := a.Goals[goalName]
+	if !found {
 		return nil, ErrGoalNotFound
 	}
+	return goal, nil
 }
-
-func (app *Application) TransitionLog(goalName string) ([]TransitionLogEntry, error) {
-	if app == nil {
-		return nil, ErrApplicationNotFound
-	}
-
-	res, err := cine.Call(app.Self(), (*Application).transitionLog, goalName)
-
+func (a *Application) Logs(goalName string, w io.Writer) error {
+	goal, err := a.goalByName(goalName)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	entries := ([]TransitionLogEntry)(nil)
-
-	entries, _ = res[0].([]TransitionLogEntry)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return entries, err2
+	return goal.Logs(w)
 }
 
-func (app *Application) transitionLog(goalName string) ([]TransitionLogEntry, error) {
-	if goal, ok := app.Goals[goalName]; ok {
-		return goal.TransitionLog(), nil
-	} else {
-		return nil, ErrGoalNotFound
-	}
-}
-
-func (app *Application) Stats(goalName string, since time.Time) (*Stats, error) {
-
-	if app == nil {
+func (a *Application) Inspect(goalName string) (*docker.Container, error) {
+	if a == nil {
 		return nil, ErrApplicationNotFound
 	}
-
-	res, err := cine.Call(app.Self(), (*Application).stats, goalName, since)
-
+	goal, err := a.goalByName(goalName)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	stats := (*Stats)(nil)
-
-	stats, _ = res[0].(*Stats)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return stats, err2
+	return goal.Inspect()
 }
 
-func (app *Application) stats(goalName string, since time.Time) (*Stats, error) {
-	if goal, ok := app.Goals[goalName]; ok {
-		return goal.Stats(since), nil
-	} else {
-		return nil, ErrGoalNotFound
-	}
-}
-
-func (app *Application) CurrentStats(goalName string) (*docker.Stats, error) {
-
-	if app == nil {
-		return nil, ErrApplicationNotFound
-	}
-
-	res, err := cine.Call(app.Self(), (*Application).currentStats, goalName)
-
+func (a *Application) TransitionLog(goalName string) ([]TransitionLogEntry, error) {
+	goal, err := a.goalByName(goalName)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	stats := (*docker.Stats)(nil)
-
-	stats, _ = res[0].(*docker.Stats)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return stats, err2
+	return goal.TransitionLog(), nil
 }
 
-func (app *Application) currentStats(goalName string) (*docker.Stats, error) {
-	if goal, ok := app.Goals[goalName]; ok {
-		return goal.CurrentStats(), nil
-	} else {
-		return nil, ErrGoalNotFound
+func (a *Application) Stats(goalName string, since time.Time) (*Stats, error) {
+	goal, err := a.goalByName(goalName)
+	if err != nil {
+		return nil, err
 	}
+	return goal.Stats(since), nil
 }
 
-func (app *Application) startGoals() {
-
-	for goalName := range app.Configuration.Goals {
-		app.Goals[goalName] = NewGoal(app, goalName, app.Name, app.Configuration.Goals, app.DockerClient)
+func (a *Application) CurrentStats(goalName string) (*docker.Stats, error) {
+	goal, err := a.goalByName(goalName)
+	if err != nil {
+		return nil, err
 	}
+	return goal.CurrentStats(), nil
+}
 
-	app.Goals[app.MainGoal].Start()
+func (a *Application) startGoals() {
+	a.Lock()
+	for goalName := range a.Configuration.Goals {
+		a.Goals[goalName] = NewGoal(a, goalName, a.Name, a.Configuration.Goals, a.DockerClient)
+	}
+	a.Unlock()
+	a.Goals[a.MainGoal].Start()
 }
 
 func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *docker.Client) *Application {
@@ -204,7 +148,6 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 	ioutil.WriteFile(fileName, json, 0644)
 
 	app := &Application{
-		Actor:               cine.Actor{},
 		Name:                applicationName,
 		Configuration:       applicationConfiguration,
 		Goals:               map[string]*Goal{},
@@ -213,43 +156,31 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 		DockerClient:        dockerClient,
 	}
 
-	cine.StartActor(app)
-
-	cine.Cast(app.Self(), nil, (*Application).startGoals)
+	app.startGoals()
 
 	return app
 
 }
 
-func (app *Application) Terminate(errReason error) {
-	os.Remove(app.ApplicationFileName)
-	for _, goal := range app.Goals {
+func (a *Application) TerminateApplication() {
+	os.Remove(a.ApplicationFileName)
+	for _, goal := range a.Goals {
 		goal.TerminateGoal()
 	}
 }
 
-func (app *Application) TerminateApplication() {
-	cine.Stop(app.Self())
-}
-
-func (app *Application) RequestGoalStart(name string) {
-	cine.Cast(app.Self(), nil, (*Application).requestGoalStart, name)
-}
-
-func (app *Application) requestGoalStart(name string) {
-	if goal, ok := app.Goals[name]; ok {
+func (a *Application) RequestGoalStart(name string) {
+	if goal, ok := a.Goals[name]; ok {
 		goal.Start()
-	} else {
-		log.Error("Application ", app.Name, " requested start of uknown goal ", name)
 	}
+	log.Warn("Application ", a.Name, " requested start of uknown goal ", name)
+
 }
 
-func (app *Application) HandleDockerEvent(evt *docker.APIEvents) {
-	cine.Cast(app.Self(), nil, (*Application).handleDockerEvent, evt)
-}
+func (a *Application) HandleDockerEvent(evt *docker.APIEvents) {
+	goals := a.copyGoals()
 
-func (app *Application) handleDockerEvent(evt *docker.APIEvents) {
-	for _, goal := range app.Goals {
+	for _, goal := range goals {
 		goal.HandleDockerEvent(evt)
 	}
 }
