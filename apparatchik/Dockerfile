@@ -1,4 +1,4 @@
-FROM golang:1.6.2-alpine
+FROM golang:1.6.2
 
 RUN mkdir -p /go/src/github.com/netice9/apparatchik/apparatchik
 WORKDIR /go/src/github.com/netice9/apparatchik/apparatchik
