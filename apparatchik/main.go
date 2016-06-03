@@ -21,7 +21,7 @@ func main() {
 
 	cine.Init("localhost:8000")
 
-	apparatchick := core.StartApparatchick(dockerClient)
+	apparatchick := core.StartApparatchik(dockerClient)
 
 	files, err := ioutil.ReadDir("/applications")
 

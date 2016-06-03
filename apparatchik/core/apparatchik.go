@@ -2,57 +2,60 @@ package core
 
 import (
 	"errors"
+	"sort"
+	"sync"
 
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/cine"
 )
 
 type Apparatchik struct {
-	cine.Actor
+	sync.Mutex
 	applications        map[string]*Application
 	dockerClient        *docker.Client
 	dockerEventsChannel chan *docker.APIEvents
 }
 
-func StartApparatchick(dockerClient *docker.Client) *Apparatchik {
+func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 
 	dockerEventsChannel := make(chan *docker.APIEvents, 20)
 	err := dockerClient.AddEventListener(dockerEventsChannel)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	apparatchick := &Apparatchik{
+		applications:        map[string]*Application{},
+		dockerClient:        dockerClient,
+		dockerEventsChannel: dockerEventsChannel,
 	}
 
-	apparatchick := &Apparatchik{cine.Actor{}, map[string]*Application{}, dockerClient, dockerEventsChannel}
-	cine.StartActor(apparatchick)
-
+	// call HandleDockerEvent for every new docker event
+	// in a separate go-routine
 	go func() {
 		for evt := range dockerEventsChannel {
 			apparatchick.HandleDockerEvent(evt)
 		}
 	}()
 
-	return apparatchick
+	return apparatchick, nil
 
 }
 
-func (p *Apparatchik) Terminate(errReason error) {
-	for _, application := range p.applications {
-		application.TerminateApplication()
-	}
-	p.applications = map[string]*Application{}
-}
+// func (p *Apparatchik) Terminate(errReason error) {
+// 	for _, application := range p.applications {
+// 		application.TerminateApplication()
+// 	}
+// 	p.applications = map[string]*Application{}
+// }
 
-func (p *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
-	cine.Cast(p.Self(), nil, (*Apparatchik).handleDockerEvent, evt)
-}
-
-func (p *Apparatchik) handleDockerEvent(evt *docker.APIEvents) {
-	for _, application := range p.applications {
+func (a *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
+	a.Lock()
+	defer a.Unlock()
+	for _, application := range a.applications {
 		application.HandleDockerEvent(evt)
 	}
 }
 
-func (p *Apparatchik) applicationStatus(applicatioName string) (*ApplicationStatus, error) {
+func (p *Apparatchik) ApplicationStatus(applicatioName string) (*ApplicationStatus, error) {
 	app, err := p.ApplicationByName(applicatioName)
 	if err != nil {
 		return nil, err
@@ -60,118 +63,73 @@ func (p *Apparatchik) applicationStatus(applicatioName string) (*ApplicationStat
 	return app.Status(), nil
 }
 
-func (p *Apparatchik) ApplicationStatus(applicatioName string) (*ApplicationStatus, error) {
-	res, err := cine.Call(p.Self(), (*Apparatchik).applicationStatus, applicatioName)
-
+func (a *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*string, error) {
+	app, err := a.ApplicationByName(applicatioName)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	status := (*ApplicationStatus)(nil)
-
-	status, _ = res[0].(*ApplicationStatus)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return status, err2
-}
-
-func (ap *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*string, error) {
-
-	application, ok := ap.applications[applicatioName]
-	if !ok {
-		return nil, errors.New("Application not found")
-	}
-	goal, ok := application.Goals[goalName]
+	// TODO add GoalByName() to Application
+	goal, ok := app.Goals[goalName]
 	if !ok {
 		return nil, errors.New("Goal not found")
 	}
 	return goal.ContainerId, nil
 }
 
-func (ap *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
-	res, err := cine.Call(ap.Self(), (*Apparatchik).newApplication, name, config)
+func (a *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
 
-	if err != nil {
-		panic(err)
-	}
+	a.Lock()
+	defer a.Unlock()
 
-	status := (*ApplicationStatus)(nil)
+	_, found := a.applications[name]
 
-	status, _ = res[0].(*ApplicationStatus)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return status, err2
-}
-
-func (ap *Apparatchik) newApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
-
-	_, ok := ap.applications[name]
-
-	if ok {
+	if found {
 		return nil, ErrApplicationAlreadyExists
 	}
 
-	application := NewApplication(name, config, ap.dockerClient)
-	ap.applications[name] = application
+	application := NewApplication(name, config, a.dockerClient)
+	a.applications[name] = application
 	return application.Status(), nil
 }
 
-func (ap *Apparatchik) TerminateApplication(applicationName string) error {
+func (a *Apparatchik) TerminateApplication(applicationName string) error {
 
-	res, err := cine.Call(ap.Self(), (*Apparatchik).terminateApplication, applicationName)
+	a.Lock()
 
-	if err != nil {
-		panic(err)
+	application, found := a.applications[applicationName]
+
+	if !found {
+		a.Unlock()
+		return ErrApplicationNotFound
 	}
 
-	err2 := (error)(nil)
+	delete(a.applications, applicationName)
 
-	err2, _ = res[0].(error)
-
-	return err2
-}
-
-func (ap *Apparatchik) terminateApplication(applicationName string) error {
-
-	application, err := ap.ApplicationByName(applicationName)
-
-	if err != nil {
-		return err
-	}
+	a.Unlock()
 
 	application.TerminateApplication()
-	delete(ap.applications, applicationName)
+
 	return nil
 }
 
-func (ap *Apparatchik) ApplicatioNames() []string {
-
-	res, err := cine.Call(ap.Self(), (*Apparatchik).applicatioNames)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return res[0].([]string)
-}
-
-func (ap *Apparatchik) applicatioNames() []string {
+func (a *Apparatchik) applicatioNames() []string {
+	a.Lock()
+	defer a.Unlock()
 
 	names := []string{}
-	for k, _ := range ap.applications {
+	for k := range a.applications {
 		names = append(names, k)
 	}
+	sort.Strings(names)
 	return names
 }
 
-func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
-	application, ok := ap.applications[name]
+func (a *Apparatchik) ApplicationByName(name string) (*Application, error) {
+	a.Lock()
+	defer a.Unlock()
+
+	application, ok := a.applications[name]
 	if !ok {
 		return nil, ErrApplicationNotFound
 	}
@@ -179,24 +137,6 @@ func (ap *Apparatchik) ApplicationByName(name string) (*Application, error) {
 }
 
 func (ap *Apparatchik) GoalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
-	res, err := cine.Call(ap.Self(), (*Apparatchik).goalTransitionLog, applicationName, goalName)
-
-	if err != nil {
-		panic(err)
-	}
-
-	logEntries := ([]TransitionLogEntry)(nil)
-
-	logEntries, _ = res[0].([]TransitionLogEntry)
-
-	err2 := (error)(nil)
-
-	err2, _ = res[1].(error)
-
-	return logEntries, err2
-}
-
-func (ap *Apparatchik) goalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
 	application, err := ap.ApplicationByName(applicationName)
 	if err != nil {
 		return nil, err
