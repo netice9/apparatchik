@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"testing"
+	"time"
 )
 
 func TestCore(t *testing.T) {
@@ -46,12 +47,26 @@ var _ = Describe("apparatchik", func() {
 			Expect(apparatchik).NotTo(BeNil())
 		})
 
+		waitForGoalStatus := func(app, goal, status string) {
+			for {
+				appStatus, err := apparatchik.ApplicationStatus(app)
+				Expect(err).To(BeNil())
+				goal := appStatus.Goals[goal]
+
+				if goal == nil || goal.Status != status {
+					time.Sleep(10 * time.Millisecond)
+				} else {
+					break
+				}
+			}
+		}
+
 		AfterEach(func() {
 			// TODO: shutdown apparatchik
 		})
 
 		Describe("NewApplication()", func() {
-			It("Should start a new application", func() {
+			It("Should start and execute a new application", func(done Done) {
 				status, err := apparatchik.NewApplication("app1", &core.ApplicationConfiguration{
 					Goals: map[string]*core.GoalConfiguration{
 						"g1": {
@@ -65,7 +80,13 @@ var _ = Describe("apparatchik", func() {
 				Expect(err).To(BeNil())
 				Expect(status).NotTo(BeNil())
 
-			})
+				Expect(status.MainGoal).To(Equal("g1"))
+				goalStatus := status.Goals["g1"]
+				Expect(goalStatus).NotTo(BeNil())
+				Expect(goalStatus.Status).To(Equal("fetching_image"))
+				waitForGoalStatus("app1", "g1", "terminated")
+				close(done)
+			}, 1)
 		})
 
 	})

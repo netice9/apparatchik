@@ -602,8 +602,6 @@ func (goal *Goal) fetchImage() {
 
 	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
 
-	fmt.Printf("Repo: %s\n", repo)
-
 	go func() {
 
 		_, err := goal.DockerClient.InspectImage(goal.CreateContainerOptions.Config.Image)
