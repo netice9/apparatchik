@@ -1,17 +1,19 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/cine"
 )
 
 const trackerHistorySize = 120
+const transitionLogMaxLength = 255
 
 type Sample struct {
 	Value uint64    `json:"value"`
@@ -35,7 +37,7 @@ type GoalStatus struct {
 }
 
 type Goal struct {
-	cine.Actor
+	sync.Mutex
 	application          *Application
 	Name                 string
 	ApplicationName      string
@@ -68,19 +70,25 @@ type GoalEvent struct {
 	Event string
 }
 
-func (goal *Goal) terminateGoal() {
-	// TODO use goroutine?
+func (goal *Goal) TerminateGoal() {
+	goal.Lock()
+	defer goal.Unlock()
 	if goal.ContainerId != nil {
-		goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
-			ID:            *goal.ContainerId,
-			RemoveVolumes: true,
-			Force:         true,
-		})
+		containerID := *goal.ContainerId
+		go func() {
+			goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
+				ID:            containerID,
+				RemoveVolumes: true,
+				Force:         true,
+			})
+		}()
 	}
 }
 
 func (goal *Goal) SetCurrentStatus(status string) {
-	cine.Cast(goal.Self(), nil, (*Goal).setCurrentStatus, status)
+	goal.Lock()
+	defer goal.Unlock()
+	goal.setCurrentStatus(status)
 }
 
 func (goal *Goal) setCurrentStatus(status string) {
@@ -89,29 +97,23 @@ func (goal *Goal) setCurrentStatus(status string) {
 
 	goal.transitionLog = append(goal.transitionLog, TransitionLogEntry{Time: time.Now(), Status: status})
 
-	if len(goal.transitionLog) > 255 {
+	if len(goal.transitionLog) > transitionLogMaxLength {
 		goal.transitionLog = goal.transitionLog[1:]
 	}
 
-	goal.application.GoalStatusUpdate(goal.Name, status)
+	go goal.application.GoalStatusUpdate(goal.Name, status)
 
 	goal.CurrentStatus = status
 
 }
 
 func (goal *Goal) FetchImageFailed(reason string) {
-	cine.Cast(goal.Self(), nil, (*Goal).fetchImageFailed, reason)
-}
-
-func (goal *Goal) fetchImageFailed(reason string) {
-	goal.setCurrentStatus("error: " + reason)
+	goal.SetCurrentStatus("error: " + reason)
 }
 
 func (goal *Goal) FetchImageFinished() {
-	cine.Cast(goal.Self(), nil, (*Goal).fetchImageFinished)
-}
-
-func (goal *Goal) fetchImageFinished() {
+	goal.Lock()
+	defer goal.Unlock()
 	goal.ImageExists = true
 	if goal.canRun() {
 		goal.startContainer()
@@ -166,9 +168,25 @@ func (goal *Goal) canRun() bool {
 }
 
 func (goal *Goal) HandleDockerEvent(evt *docker.APIEvents) {
-	cine.Cast(goal.Self(), nil, (*Goal).handleDockerEvent, evt)
+	goal.Lock()
+	defer goal.Unlock()
+	goal.handleDockerEvent(evt)
 }
 
+func (goal *Goal) SetExitCode(exitCode int) {
+	goal.Lock()
+	defer goal.Unlock()
+	goal.ExitCode = &exitCode
+	if exitCode == 0 {
+		goal.setCurrentStatus("terminated")
+	} else {
+		goal.setCurrentStatus("failed")
+		if goal.canRun() {
+			goal.startContainer()
+		}
+	}
+
+}
 func (goal *Goal) handleDockerEvent(evt *docker.APIEvents) {
 	if goal.ContainerId != nil && evt.ID == *goal.ContainerId {
 		if evt.Status == "start" {
@@ -176,34 +194,19 @@ func (goal *Goal) handleDockerEvent(evt *docker.APIEvents) {
 		}
 
 		if evt.Status == "die" {
-
-			container, err := goal.DockerClient.InspectContainer(*goal.ContainerId)
-			if err != nil {
-				goal.setCurrentStatus("error: " + err.Error())
-			} else {
-				goal.ExitCode = &container.State.ExitCode
-			}
-			if *goal.ExitCode == 0 {
-				goal.setCurrentStatus("terminated")
-			} else {
-				goal.setCurrentStatus("failed")
-				if goal.canRun() {
-					goal.startContainer()
+			containerID := *goal.ContainerId
+			go func() {
+				container, err := goal.DockerClient.InspectContainer(containerID)
+				if err != nil {
+					goal.SetCurrentStatus("error: " + err.Error())
+					return
 				}
+				goal.SetExitCode(container.State.ExitCode)
 
-			}
+			}()
 		}
 	}
 
-}
-
-func Contains(stringSlice []string, value string) bool {
-	for _, current := range stringSlice {
-		if current == value {
-			return true
-		}
-	}
-	return false
 }
 
 func ContainsString(slice []string, val string) bool {
@@ -237,11 +240,13 @@ func containerName(applicationName string, goalName string, configName *string) 
 }
 
 func (goal *Goal) StopContainer() {
-	goal.setCurrentStatus("stopping_container")
-	err := goal.DockerClient.StopContainer(*goal.ContainerId, 0)
-	if err != nil {
-		goal.setCurrentStatus("error: " + err.Error())
-	}
+	goal.SetCurrentStatus("stopping_container")
+	go func() {
+		err := goal.DockerClient.StopContainer(*goal.ContainerId, 0)
+		if err != nil {
+			goal.SetCurrentStatus("error: " + err.Error())
+		}
+	}()
 }
 
 func (goal *Goal) startContainer() {
@@ -292,10 +297,9 @@ func (goal *Goal) startContainer() {
 }
 
 func (goal *Goal) ContainerStarted() {
-	cine.Cast(goal.Self(), nil, (*Goal).containerStarted)
-}
 
-func (goal *Goal) containerStarted() {
+	goal.Lock()
+	defer goal.Unlock()
 
 	ch := make(chan *docker.Stats)
 
@@ -316,17 +320,21 @@ func (goal *Goal) containerStarted() {
 }
 
 func (goal *Goal) SetContainerID(containerID string) {
-	cine.Cast(goal.Self(), nil, (*Goal).setContainerID, containerID)
+	goal.Lock()
+	defer goal.Unlock()
+	goal.ContainerId = &containerID
 }
 
-func (goal *Goal) setContainerID(containerID string) {
-	goal.ContainerId = &containerID
+func (goal *Goal) GetContainerID() *string {
+	goal.Lock()
+	defer goal.Unlock()
+	return goal.ContainerId
 }
 
 // TODO move up the stream - Application?, consider async
 func (goal *Goal) Logs(w io.Writer) error {
 	return goal.DockerClient.Logs(docker.LogsOptions{
-		Container:    *goal.ContainerId,
+		Container:    *goal.GetContainerID(),
 		OutputStream: w,
 		ErrorStream:  w,
 		Stdout:       true,
@@ -337,11 +345,12 @@ func (goal *Goal) Logs(w io.Writer) error {
 
 // TODO move this down the chain - application level
 func (goal *Goal) Inspect() (*docker.Container, error) {
-	if goal.ContainerId != nil {
-		return goal.DockerClient.InspectContainer(*goal.ContainerId)
-	} else {
-		return nil, nil
+	containerID := goal.GetContainerID()
+	if containerID != nil {
+		return goal.DockerClient.InspectContainer(*containerID)
 	}
+	return nil, errors.New("Conainer is not running")
+
 }
 
 func ParseRepositoryTag(repos string) (string, string) {
@@ -365,7 +374,6 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 	config := configs[goalName]
 
 	goal := &Goal{
-		Actor:                cine.Actor{},
 		application:          application,
 		Name:                 goalName,
 		ApplicationName:      applicationName,
@@ -545,60 +553,38 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	}
 
-	cine.StartActor(goal)
-	cine.Cast(goal.Self(), nil, (*Goal).fetchImage)
+	goal.FetchImage()
 
 	return goal
 }
 
-func (goal *Goal) TransitionLog() []TransitionLogEntry {
-	result, err := cine.Call(goal.Self(), (*Goal).getTransitionLog)
-	if err != nil {
-		panic(err)
-	}
-
-	return result[0].([]TransitionLogEntry)
-}
-
-func (goal *Goal) getTransitionLog() []TransitionLogEntry {
-	return goal.transitionLog
+func (goal *Goal) GetTransitionLog() []TransitionLogEntry {
+	goal.Lock()
+	defer goal.Unlock()
+	log := make([]TransitionLogEntry, len(goal.transitionLog))
+	copy(log, goal.transitionLog)
+	return log
 }
 
 func (goal *Goal) CurrentStats() *docker.Stats {
-	result, err := cine.Call(goal.Self(), (*Goal).currentStats)
-	if err != nil {
-		panic(err)
-	}
-	if result[0] == nil {
-		return nil
-	}
-	return result[0].(*docker.Stats)
-}
-
-func (goal *Goal) currentStats() *docker.Stats {
+	goal.Lock()
+	defer goal.Unlock()
 	return goal.lastSample
 }
 
 func (goal *Goal) Stats(since time.Time) *Stats {
-	result, err := cine.Call(goal.Self(), (*Goal)._stats, since)
-	if err != nil {
-		panic(err)
-	}
-	if result[0] == nil {
-		return nil
-	}
-	return result[0].(*Stats)
-
-}
-
-func (goal *Goal) _stats(since time.Time) *Stats {
+	goal.Lock()
+	defer goal.Unlock()
 	return &Stats{
 		CpuStats: LimitSampleByTime(goal.stats.CpuStats, since),
 		MemStats: LimitSampleByTime(goal.stats.MemStats, since),
 	}
 }
 
-func (goal *Goal) fetchImage() {
+func (goal *Goal) FetchImage() {
+
+	goal.Lock()
+	defer goal.Unlock()
 
 	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
 
@@ -635,10 +621,8 @@ func (goal *Goal) fetchImage() {
 }
 
 func (goal *Goal) SiblingStatusUpdate(goalName, status string) {
-	cine.Cast(goal.Self(), nil, (*Goal).siblingStatusUpdate, goalName, status)
-}
-
-func (goal *Goal) siblingStatusUpdate(goalName, status string) {
+	goal.Lock()
+	defer goal.Unlock()
 	if _, ok := goal.RunAfterStatuses[goalName]; ok {
 		goal.RunAfterStatuses[goalName] = status
 	}
@@ -649,19 +633,13 @@ func (goal *Goal) siblingStatusUpdate(goalName, status string) {
 	if goal.canRun() {
 		goal.startContainer()
 	} else if goal.shouldStop() {
-		goal.StopContainer()
+		go goal.StopContainer()
 	}
 }
 
 func (goal *Goal) Status() *GoalStatus {
-	result, err := cine.Call(goal.Self(), (*Goal).status)
-	if err != nil {
-		panic(err)
-	}
-	return result[0].(*GoalStatus)
-}
-
-func (goal *Goal) status() *GoalStatus {
+	goal.Lock()
+	defer goal.Unlock()
 	return &GoalStatus{
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
@@ -670,10 +648,8 @@ func (goal *Goal) status() *GoalStatus {
 }
 
 func (goal *Goal) Start() {
-	cine.Cast(goal.Self(), nil, (*Goal).start)
-}
-
-func (goal *Goal) start() {
+	goal.Lock()
+	defer goal.Unlock()
 	goal.ShouldRun = true
 
 	if goal.canRun() {
@@ -686,34 +662,22 @@ func (goal *Goal) start() {
 		}
 		for name, status := range goal.RunAfterStatuses {
 			if status != "not_running" {
-				goal.application.RequestGoalStart(name)
+				go goal.application.RequestGoalStart(name)
 			}
 		}
 		for name, status := range goal.LinksStatuses {
 			if status != "running" {
-				goal.application.RequestGoalStart(name)
+				go goal.application.RequestGoalStart(name)
 			}
 		}
 	}
 
 }
 
-func (goal *Goal) Terminate(errReason error) {
-	goal.terminateGoal()
-
-	// TODO stop tracker
-
-}
-
-func (goal *Goal) TerminateGoal() {
-	cine.Stop(goal.Self())
-}
-
 func (goal *Goal) HandleStatsEvent(stats *docker.Stats) {
-	cine.Cast(goal.Self(), nil, (*Goal).hanleStatsEvent, stats)
-}
 
-func (goal *Goal) hanleStatsEvent(stats *docker.Stats) {
+	goal.Lock()
+	defer goal.Unlock()
 
 	if goal.lastSample == nil {
 		goal.lastSample = stats

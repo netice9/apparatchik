@@ -36,9 +36,8 @@ type ApplicationStatus struct {
 }
 
 func (a *Application) GoalStatusUpdate(goalName, status string) {
-	a.Lock()
-	defer a.Unlock()
-	for name, goal := range a.Goals {
+	goals := a.copyGoals()
+	for name, goal := range goals {
 		if name != goalName {
 			goal.SiblingStatusUpdate(goalName, status)
 		}
@@ -107,7 +106,7 @@ func (a *Application) TransitionLog(goalName string) ([]TransitionLogEntry, erro
 	if err != nil {
 		return nil, err
 	}
-	return goal.TransitionLog(), nil
+	return goal.GetTransitionLog(), nil
 }
 
 func (a *Application) Stats(goalName string, since time.Time) (*Stats, error) {
@@ -129,6 +128,7 @@ func (a *Application) CurrentStats(goalName string) (*docker.Stats, error) {
 func (a *Application) startGoals() {
 	a.Lock()
 	for goalName := range a.Configuration.Goals {
+
 		a.Goals[goalName] = NewGoal(a, goalName, a.Name, a.Configuration.Goals, a.DockerClient)
 	}
 	a.Unlock()
@@ -170,8 +170,12 @@ func (a *Application) TerminateApplication() {
 }
 
 func (a *Application) RequestGoalStart(name string) {
-	if goal, ok := a.Goals[name]; ok {
+
+	goals := a.copyGoals()
+
+	if goal, ok := goals[name]; ok {
 		goal.Start()
+		return
 	}
 	log.Warn("Application ", a.Name, " requested start of uknown goal ", name)
 

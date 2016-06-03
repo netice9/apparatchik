@@ -133,11 +133,6 @@
 			"revisionTime": "2014-04-30T06:19:29-07:00"
 		},
 		{
-			"path": "github.com/netice9/cine",
-			"revision": "f70e5e2b427156105108ce83d59a4425f0978a91",
-			"revisionTime": "2016-01-02T05:09:23Z"
-		},
-		{
 			"path": "github.com/pmezard/go-difflib/difflib",
 			"revision": "e8554b8641db39598be7f6342874b958f12ae1d4",
 			"revisionTime": "2015-12-07T19:24:34+01:00"

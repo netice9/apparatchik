@@ -8,7 +8,6 @@ import (
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/apparatchik/apparatchik/core"
-	"github.com/netice9/cine"
 )
 
 // var apparatchick *core.Apparatchik = nil
@@ -18,8 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	cine.Init("localhost:8000")
 
 	apparatchick, err := core.StartApparatchik(dockerClient)
 
