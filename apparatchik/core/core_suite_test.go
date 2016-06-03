@@ -62,7 +62,7 @@ var _ = Describe("apparatchik", func() {
 		}
 
 		AfterEach(func() {
-			// TODO: shutdown apparatchik
+			apparatchik.Stop()
 		})
 
 		Describe("NewApplication()", func() {

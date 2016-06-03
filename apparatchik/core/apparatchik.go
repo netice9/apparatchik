@@ -40,12 +40,14 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 
 }
 
-// func (p *Apparatchik) Terminate(errReason error) {
-// 	for _, application := range p.applications {
-// 		application.TerminateApplication()
-// 	}
-// 	p.applications = map[string]*Application{}
-// }
+func (a *Apparatchik) Stop() {
+	a.Lock()
+	defer a.Unlock()
+	for _, application := range a.applications {
+		application.TerminateApplication()
+	}
+	a.applications = map[string]*Application{}
+}
 
 func (a *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
 	a.Lock()
