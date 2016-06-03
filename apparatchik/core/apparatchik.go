@@ -115,7 +115,7 @@ func (a *Apparatchik) TerminateApplication(applicationName string) error {
 	return nil
 }
 
-func (a *Apparatchik) applicatioNames() []string {
+func (a *Apparatchik) ApplicatioNames() []string {
 	a.Lock()
 	defer a.Unlock()
 
