@@ -25,10 +25,10 @@ type GoalConfiguration struct {
 	Volumes       []string                 `json:"volumes,omitempty"`
 	Environment   map[string]string        `json:"environment,omitempty"`
 	Labels        map[string]string        `json:"labels,omitempty"`
-	LogDriver     *string                  `json:"log_driver,omitempty"`
+	LogDriver     string                   `json:"log_driver,omitempty"`
 	LogConfig     map[string]string        `json:"log_config,omitempty"`
-	Net           *string                  `json:"net,omitempty"`
-	Dns           *[]string                `json:"dns,omitempty"`
+	Net           string                   `json:"net,omitempty"`
+	Dns           []string                 `json:"dns,omitempty"`
 	CapAdd        []string                 `json:"cap_add,omitempty"`
 	CapDrop       []string                 `json:"cap_drop,omitempty"`
 	DNSSearch     []string                 `json:"dns_search,omitempty"`
@@ -43,7 +43,7 @@ type GoalConfiguration struct {
 	MemLimit      int64                    `json:"mem_limit,omitempty"`
 	MemSwapLimit  int64                    `json:"memswap_limit,omitempty"`
 	Privileged    bool                     `json:"privileged,omitempty"`
-	Restart       *string                  `json:"restart,omitempty"`
+	Restart       string                   `json:"restart,omitempty"`
 	StdinOpen     bool                     `json:"stdin_open,omitempty"`
 	Tty           bool                     `json:"tty,omitempty"`
 	CpuShares     int64                    `json:"cpu_shares,omitempty"`
@@ -51,7 +51,7 @@ type GoalConfiguration struct {
 	ReadOnly      bool                     `json:"read_only,omitempty"`
 	VolumeDrvier  string                   `json:"volume_driver,omitempty"`
 	AuthConfig    docker.AuthConfiguration `json:"auth_config,omitempty"`
-	ContainerName *string                  `json:"container_name,omitempty"`
+	ContainerName string                   `json:"container_name,omitempty"`
 	ExternalLinks []string                 `json:"external_links,omitempty"`
 	SmartRestart  bool                     `json:"smart_restart,omitempty"`
 }

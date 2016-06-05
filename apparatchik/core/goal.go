@@ -71,17 +71,13 @@ type GoalEvent struct {
 }
 
 func (goal *Goal) TerminateGoal() {
-	goal.Lock()
-	defer goal.Unlock()
 	if goal.ContainerId != nil {
 		containerID := *goal.ContainerId
-		go func() {
-			goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
-				ID:            containerID,
-				RemoveVolumes: true,
-				Force:         true,
-			})
-		}()
+		goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            containerID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
 	}
 }
 
@@ -232,9 +228,9 @@ func (goal *Goal) findContainerIdByName(name string) (*docker.APIContainers, err
 	return nil, nil
 }
 
-func containerName(applicationName string, goalName string, configName *string) string {
-	if configName != nil {
-		return *configName
+func containerName(applicationName string, goalName string, configName string) string {
+	if configName != "" {
+		return configName
 	}
 	return fmt.Sprintf("ap_%s_%s", applicationName, goalName)
 }
@@ -423,8 +419,8 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		},
 	}
 
-	if config.Restart != nil {
-		goal.CreateContainerOptions.HostConfig.RestartPolicy = docker.RestartPolicy{Name: *config.Restart}
+	if config.Restart != "" {
+		goal.CreateContainerOptions.HostConfig.RestartPolicy = docker.RestartPolicy{Name: config.Restart}
 	}
 
 	for _, deviceString := range config.Devices {
@@ -450,17 +446,17 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 			CgroupPermissions: perm})
 	}
 
-	if config.Dns != nil {
-		goal.CreateContainerOptions.HostConfig.DNS = *config.Dns
+	if len(config.Dns) != 0 {
+		goal.CreateContainerOptions.HostConfig.DNS = config.Dns
 	}
 
-	if config.Net != nil {
-		goal.CreateContainerOptions.HostConfig.NetworkMode = *config.Net
+	if config.Net != "" {
+		goal.CreateContainerOptions.HostConfig.NetworkMode = config.Net
 	}
 
-	if config.LogDriver != nil {
+	if config.LogDriver != "" {
 		goal.CreateContainerOptions.HostConfig.LogConfig = docker.LogConfig{
-			Type:   *config.LogDriver,
+			Type:   config.LogDriver,
 			Config: config.LogConfig,
 		}
 	}
