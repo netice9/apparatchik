@@ -49,7 +49,7 @@ type Goal struct {
 	UpstreamGoalStatuses map[string]string
 	ShouldRun            bool
 	ImageExists          bool
-	AuthConfig           docker.AuthConfiguration
+	AuthConfig           AuthConfiguration
 	SmartRestart         bool
 
 	CreateContainerOptions docker.CreateContainerOptions
@@ -603,7 +603,7 @@ func (goal *Goal) FetchImage() {
 			Tag:        tag,
 		}
 
-		err = goal.DockerClient.PullImage(opts, goal.AuthConfig)
+		err = goal.DockerClient.PullImage(opts, goal.AuthConfig.toDockerAuthConfig())
 
 		if err != nil {
 			goal.FetchImageFailed(err.Error())

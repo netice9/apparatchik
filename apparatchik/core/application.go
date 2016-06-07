@@ -135,6 +135,14 @@ func (a *Application) startGoals() {
 	a.Goals[a.MainGoal].Start()
 }
 
+func NewApplicationWithDockerClientFromEnv(applicationName string, applicationConfiguration *ApplicationConfiguration) (*Application, error) {
+	dockerClient, err := docker.NewClientFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	return NewApplication(applicationName, applicationConfiguration, dockerClient), nil
+}
+
 func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *docker.Client) *Application {
 
 	fileName := "/applications/" + applicationName + ".json"

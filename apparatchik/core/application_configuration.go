@@ -14,46 +14,62 @@ type ApplicationConfiguration struct {
 	MainGoal string                        `json:"main_goal"`
 }
 
+type AuthConfiguration struct {
+	Username      string `json:"username,omitempty"`
+	Password      string `json:"password,omitempty"`
+	Email         string `json:"email,omitempty"`
+	ServerAddress string `json:"serveraddress,omitempty"`
+}
+
+func (a AuthConfiguration) toDockerAuthConfig() docker.AuthConfiguration {
+	return docker.AuthConfiguration{
+		Username:      a.Username,
+		Password:      a.Password,
+		Email:         a.Email,
+		ServerAddress: a.ServerAddress,
+	}
+}
+
 type GoalConfiguration struct {
-	Image         string                   `json:"image"`
-	Command       []string                 `json:"command,omitempty"`
-	RunAfter      []string                 `json:"run_after,omitempty"`
-	Links         []string                 `json:"links,omitempty"`
-	ExtraHosts    []string                 `json:"extra_hosts,omitempty"`
-	Ports         []string                 `json:"ports,omitempty"`
-	Expose        []string                 `json:"expose,omitempty"`
-	Volumes       []string                 `json:"volumes,omitempty"`
-	Environment   map[string]string        `json:"environment,omitempty"`
-	Labels        map[string]string        `json:"labels,omitempty"`
-	LogDriver     string                   `json:"log_driver,omitempty"`
-	LogConfig     map[string]string        `json:"log_config,omitempty"`
-	Net           string                   `json:"net,omitempty"`
-	Dns           []string                 `json:"dns,omitempty"`
-	CapAdd        []string                 `json:"cap_add,omitempty"`
-	CapDrop       []string                 `json:"cap_drop,omitempty"`
-	DNSSearch     []string                 `json:"dns_search,omitempty"`
-	Devices       []string                 `json:"devices,omitempty"`
-	SecurityOpt   []string                 `json:"security_opt,omitempty"`
-	WorkingDir    string                   `json:"working_dir,omitempty"`
-	Entrypoint    []string                 `json:"entrypoint,omitempty"`
-	User          string                   `json:"user,omitempty"`
-	Hostname      string                   `json:"hostname,omitempty"`
-	Domainname    string                   `json:"domainname,omitempty"`
-	MacAddress    string                   `json:"mac_address,omitempty"`
-	MemLimit      int64                    `json:"mem_limit,omitempty"`
-	MemSwapLimit  int64                    `json:"memswap_limit,omitempty"`
-	Privileged    bool                     `json:"privileged,omitempty"`
-	Restart       string                   `json:"restart,omitempty"`
-	StdinOpen     bool                     `json:"stdin_open,omitempty"`
-	Tty           bool                     `json:"tty,omitempty"`
-	CpuShares     int64                    `json:"cpu_shares,omitempty"`
-	CpuSet        string                   `json:"cpuset,omitempty"`
-	ReadOnly      bool                     `json:"read_only,omitempty"`
-	VolumeDrvier  string                   `json:"volume_driver,omitempty"`
-	AuthConfig    docker.AuthConfiguration `json:"auth_config,omitempty"`
-	ContainerName string                   `json:"container_name,omitempty"`
-	ExternalLinks []string                 `json:"external_links,omitempty"`
-	SmartRestart  bool                     `json:"smart_restart,omitempty"`
+	Image         string            `json:"image"`
+	Command       []string          `json:"command,omitempty"`
+	RunAfter      []string          `json:"run_after,omitempty"`
+	Links         []string          `json:"links,omitempty"`
+	ExtraHosts    []string          `json:"extra_hosts,omitempty"`
+	Ports         []string          `json:"ports,omitempty"`
+	Expose        []string          `json:"expose,omitempty"`
+	Volumes       []string          `json:"volumes,omitempty"`
+	Environment   map[string]string `json:"environment,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	LogDriver     string            `json:"log_driver,omitempty"`
+	LogConfig     map[string]string `json:"log_config,omitempty"`
+	Net           string            `json:"net,omitempty"`
+	Dns           []string          `json:"dns,omitempty"`
+	CapAdd        []string          `json:"cap_add,omitempty"`
+	CapDrop       []string          `json:"cap_drop,omitempty"`
+	DNSSearch     []string          `json:"dns_search,omitempty"`
+	Devices       []string          `json:"devices,omitempty"`
+	SecurityOpt   []string          `json:"security_opt,omitempty"`
+	WorkingDir    string            `json:"working_dir,omitempty"`
+	Entrypoint    []string          `json:"entrypoint,omitempty"`
+	User          string            `json:"user,omitempty"`
+	Hostname      string            `json:"hostname,omitempty"`
+	Domainname    string            `json:"domainname,omitempty"`
+	MacAddress    string            `json:"mac_address,omitempty"`
+	MemLimit      int64             `json:"mem_limit,omitempty"`
+	MemSwapLimit  int64             `json:"memswap_limit,omitempty"`
+	Privileged    bool              `json:"privileged,omitempty"`
+	Restart       string            `json:"restart,omitempty"`
+	StdinOpen     bool              `json:"stdin_open,omitempty"`
+	Tty           bool              `json:"tty,omitempty"`
+	CpuShares     int64             `json:"cpu_shares,omitempty"`
+	CpuSet        string            `json:"cpuset,omitempty"`
+	ReadOnly      bool              `json:"read_only,omitempty"`
+	VolumeDrvier  string            `json:"volume_driver,omitempty"`
+	AuthConfig    AuthConfiguration `json:"auth_config,omitempty"`
+	ContainerName string            `json:"container_name,omitempty"`
+	ExternalLinks []string          `json:"external_links,omitempty"`
+	SmartRestart  bool              `json:"smart_restart,omitempty"`
 }
 
 func (gc *GoalConfiguration) Clone() *GoalConfiguration {
