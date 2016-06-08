@@ -140,7 +140,20 @@ func NewApplicationWithDockerClientFromEnv(applicationName string, applicationCo
 	if err != nil {
 		return nil, err
 	}
-	return NewApplication(applicationName, applicationConfiguration, dockerClient), nil
+
+	dockerEventsChannel := make(chan *docker.APIEvents, 20)
+	err = dockerClient.AddEventListener(dockerEventsChannel)
+	if err != nil {
+		return nil, err
+	}
+
+	application := NewApplication(applicationName, applicationConfiguration, dockerClient)
+	go func() {
+		for evt := range dockerEventsChannel {
+			application.HandleDockerEvent(evt)
+		}
+	}()
+	return application, nil
 }
 
 func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *docker.Client) *Application {
