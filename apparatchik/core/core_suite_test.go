@@ -3,7 +3,6 @@ package core_test
 import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/apparatchik/apparatchik/core"
-	"github.com/netice9/cine"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -22,7 +21,6 @@ func init() {
 		panic(err)
 	}
 	dockerClient = c
-	cine.Init("localhost:63433")
 }
 
 var dockerClient *docker.Client

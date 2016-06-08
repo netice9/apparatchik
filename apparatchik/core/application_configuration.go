@@ -61,6 +61,9 @@ type GoalConfiguration struct {
 	Privileged    bool              `json:"privileged,omitempty"`
 	Restart       string            `json:"restart,omitempty"`
 	StdinOpen     bool              `json:"stdin_open,omitempty"`
+	AttachStdin   bool              `json:"attach_stdin,omitempty"`
+	AttachStdout  bool              `json:"attach_stdout,omitempty"`
+	AttachStderr  bool              `json:"attach_stderr,omitempty"`
 	Tty           bool              `json:"tty,omitempty"`
 	CpuShares     int64             `json:"cpu_shares,omitempty"`
 	CpuSet        string            `json:"cpuset,omitempty"`
