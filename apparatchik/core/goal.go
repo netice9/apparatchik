@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -471,15 +473,15 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 	for _, bind := range config.Volumes {
 		parts := strings.Split(bind, ":")
 		if len(parts) == 1 {
-			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, parts[0]+":"+parts[0])
+			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]))
 		} else if len(parts) == 2 {
 			if parts[1] == "rw" || parts[1] == "ro" {
-				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, parts[0]+":"+parts[0]+":"+parts[1])
+				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]+":"+parts[1]))
 			} else {
-				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, bind)
+				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(bind))
 			}
 		} else {
-			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, bind)
+			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(bind))
 		}
 
 	}
@@ -555,6 +557,14 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 	goal.FetchImage()
 
 	return goal
+}
+
+func replaceRelativePath(pth string) string {
+	if strings.HasPrefix(pth, "./") {
+		wd, _ := os.Getwd()
+		return path.Join(wd, pth[2:])
+	}
+	return pth
 }
 
 func (goal *Goal) GetTransitionLog() []TransitionLogEntry {
