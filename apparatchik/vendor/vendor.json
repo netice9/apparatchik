@@ -103,6 +103,11 @@
 			"revisionTime": "2016-02-19T16:40:26+01:00"
 		},
 		{
+			"path": "github.com/netice9/notifier-go",
+			"revision": "5e1e7c383336b0cd985a3f430293353525fbd080",
+			"revisionTime": "2016-06-15T00:02:43+01:00"
+		},
+		{
 			"path": "github.com/onsi/ginkgo",
 			"revision": "ac3d45ddd7ef5c4d7fc4d037b615a81f4d67981e",
 			"revisionTime": "2016-02-18T18:10:59-08:00"
@@ -258,14 +263,19 @@
 			"revisionTime": "2015-12-07T16:24:04-08:00"
 		},
 		{
+			"path": "gitlab.netice9.com/dragan/go-bootreactor",
+			"revision": "f89e0e2f096dff78be9af23e79a61c9042e66e36",
+			"revisionTime": "2016-06-23T23:29:35+01:00"
+		},
+		{
 			"path": "golang.org/x/net/context",
 			"revision": "313cf39d4ac368181bce6960ac9be9e7cee67e68",
 			"revisionTime": "2016-06-08T05:04:34+09:00"
 		},
 		{
 			"path": "golang.org/x/sys/unix",
-			"revision": "b776ec39b3e54652e09028aaaaac9757f4f8211a",
-			"revisionTime": "2016-04-20T22:29:30-04:00"
+			"revision": "076b546753157f758b316e59bcb51e6807c04057",
+			"revisionTime": "2016-06-01T22:49:39+09:30"
 		}
 	]
 }
