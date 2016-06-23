@@ -6,10 +6,12 @@ import (
 	"sync"
 
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/notifier-go"
 )
 
 type Apparatchik struct {
 	sync.Mutex
+	*notifier.Notifier
 	applications        map[string]*Application
 	dockerClient        *docker.Client
 	dockerEventsChannel chan *docker.APIEvents
@@ -26,6 +28,7 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 		applications:        map[string]*Application{},
 		dockerClient:        dockerClient,
 		dockerEventsChannel: dockerEventsChannel,
+		Notifier:            &notifier.Notifier{},
 	}
 
 	// call HandleDockerEvent for every new docker event
@@ -35,6 +38,8 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 			apparatchick.HandleDockerEvent(evt)
 		}
 	}()
+
+	apparatchick.Notify(apparatchick.applicatioNames())
 
 	return apparatchick, nil
 
@@ -92,6 +97,10 @@ func (a *Apparatchik) NewApplication(name string, config *ApplicationConfigurati
 
 	application := NewApplication(name, config, a.dockerClient)
 	a.applications[name] = application
+
+	applicationNames := a.applicatioNames()
+	a.Notify(applicationNames)
+
 	return application.Status(), nil
 }
 
@@ -112,19 +121,25 @@ func (a *Apparatchik) TerminateApplication(applicationName string) error {
 
 	application.TerminateApplication()
 
+	applicationNames := a.applicatioNames()
+	a.Notify(applicationNames)
+
 	return nil
 }
 
-func (a *Apparatchik) ApplicatioNames() []string {
-	a.Lock()
-	defer a.Unlock()
-
+func (a *Apparatchik) applicatioNames() []string {
 	names := []string{}
 	for k := range a.applications {
 		names = append(names, k)
 	}
 	sort.Strings(names)
 	return names
+}
+
+func (a *Apparatchik) ApplicatioNames() []string {
+	a.Lock()
+	defer a.Unlock()
+	return a.applicatioNames()
 }
 
 func (a *Apparatchik) ApplicationByName(name string) (*Application, error) {

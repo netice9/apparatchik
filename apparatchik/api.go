@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"time"
+
+	"gitlab.netice9.com/dragan/go-bootreactor"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/netice9/apparatchik/apparatchik/core"
+	"github.com/netice9/apparatchik/apparatchik/ui"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
@@ -31,6 +35,15 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 		dockerClient: dockerClient,
 	}
 	router := httprouter.New()
+
+	displayCreator := func(display chan *bootreactor.DisplayUpdate, userEvents chan *bootreactor.UserEvent, r *http.Request) http.Header {
+		ctx := ui.NewContext(display, userEvents, apparatchick)
+		go ui.RunApparatchikUI(ctx)
+		return http.Header{}
+	}
+
+	router.HandlerFunc("GET", "/ws", bootreactor.NewReactorHandler(displayCreator))
+
 	router.PUT("/api/v1.0/applications/:applicationName", api.CreateApplication)
 	router.DELETE("/api/v1.0/applications/:applicationName", api.DeleteApplication)
 
@@ -46,7 +59,16 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	router.NotFound = http.FileServer(http.Dir("public"))
 
 	handler := context.ClearHandler(NewAuthHandler(router))
-	http.ListenAndServe(":8080", handler)
+
+	bnd := ":8080"
+
+	port := os.Getenv("PORT")
+
+	if port != "" {
+		bnd = ":" + port
+	}
+
+	http.ListenAndServe(bnd, handler)
 }
 
 func (a *API) GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
