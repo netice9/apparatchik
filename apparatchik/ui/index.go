@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
 	"gitlab.netice9.com/dragan/go-bootreactor"
@@ -55,6 +54,12 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
   </div>
 `)
 
+var appGroupItem = bootreactor.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
+
+var appGroupUI = bootreactor.MustParseDisplayModel(`
+<bs.ListGroup id="list_group"/>
+`)
+
 type Screen func(*Context) (Screen, error)
 
 func MainScreen(ctx *Context) (Screen, error) {
@@ -68,7 +73,15 @@ func MainScreen(ctx *Context) (Screen, error) {
 		select {
 		case apps := <-ch:
 			view := navigationUI.DeepCopy()
-			view.SetElementText("content", " "+strings.Join(apps.([]string), ","))
+			listGroup := appGroupUI.DeepCopy()
+			for _, app := range apps.([]string) {
+				item := appGroupItem.DeepCopy()
+				item.SetElementText("list_element", app)
+				item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/%s", app))
+				listGroup.AppendChild("list_group", item)
+			}
+
+			view.ReplaceChild("content", listGroup)
 			fmt.Println("update", apps)
 			ctx.display <- &bootreactor.DisplayUpdate{
 				Model: view,
