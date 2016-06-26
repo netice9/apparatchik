@@ -264,8 +264,8 @@
 		},
 		{
 			"path": "gitlab.netice9.com/dragan/go-bootreactor",
-			"revision": "f89e0e2f096dff78be9af23e79a61c9042e66e36",
-			"revisionTime": "2016-06-23T23:29:35+01:00"
+			"revision": "3ee454abf73a4120614d8747cee74d2da900c9ac",
+			"revisionTime": "2016-06-26T23:14:17+01:00"
 		},
 		{
 			"path": "golang.org/x/net/context",

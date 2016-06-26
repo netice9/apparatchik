@@ -79,11 +79,13 @@ func ParseDisplayModel(src string) (*DisplayModel, error) {
 		case xml.CharData:
 			if len(stack) != 0 {
 
-				text := strings.TrimSpace(string(t))
+				original := string(t)
+
+				text := strings.TrimSpace(original)
 
 				if text != "" {
 					model := &DisplayModel{
-						Text: &text,
+						Text: &original,
 					}
 					prev := stack[len(stack)-1]
 					prev.Children = append(prev.Children, model)

@@ -63,11 +63,11 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
   		 </bs.Nav>
   	</bs.Navbar>
 
-		<bs.Breadcrumb id="breadcrumb" />
 
   	<bs.Grid bool:fluid="true">
 			<bs.Row>
-				<bs.Col int:mdOffset="2" int:md="8" int:smOffset="0" int:sm="12">
+				<bs.Col int:mdOffset="1" int:md="10" int:smOffset="0" int:sm="12">
+					<bs.Breadcrumb id="breadcrumb" />
 					<div id="content" className="container">Welcome!</div>
 				</bs.Col>
 			</bs.Row>
@@ -105,7 +105,7 @@ var appGroupUI = bootreactor.MustParseDisplayModel(`
 		<bs.ListGroup id="list_group"/>
 	</div>
 	<div className="panel-footer">
-		<bs.Button href="#/add_application"><bs.Glyphicon glyph="plus"/></bs.Button>
+		<bs.Button href="#/add_application"><bs.Glyphicon glyph="plus"/> Deploy an Application</bs.Button>
 	</div>
 </div>
 `)
