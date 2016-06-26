@@ -104,7 +104,6 @@ func MainScreen(ctx *Context) (Screen, error) {
 			}
 
 			view.ReplaceChild("content", listGroup)
-			fmt.Println("update", apps)
 			ctx.display <- &bootreactor.DisplayUpdate{
 				Model: view,
 			}
@@ -116,7 +115,6 @@ func MainScreen(ctx *Context) (Screen, error) {
 			if next != nil {
 				return next, nil
 			}
-			fmt.Println(evt)
 		}
 	}
 

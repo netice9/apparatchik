@@ -20,6 +20,11 @@ func (n *Notifier) Notify(value interface{}) {
 	for _, listener := range n.listeners {
 		l := listener
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// ignore?
+				}
+			}()
 			l <- value
 		}()
 	}

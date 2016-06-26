@@ -51933,20 +51933,27 @@ var Wrapper = React.createClass({
           evt.nativeEvent.stopImmediatePropagation();
         }
 
-        var files = evt.target.files || [];
+        if (evt) {
+          var files = evt.target.files || [];
 
-        if (files.length > 0) {
+          if (files.length > 0) {
 
-          var reader = new FileReader();
-          reader.onload = function (theFile) {
+            var reader = new FileReader();
+            reader.onload = function (theFile) {
+              if (ws) {
+                ws.send(JSON.stringify({ id: model.id, type: eventName, value: files[0].name, data: reader.result }));
+              }
+            };
 
-            ws.send(JSON.stringify({ id: model.id, type: eventName, value: files[0].name, data: reader.result }));
-          };
-
-          reader.readAsText(files[0]);
+            reader.readAsText(files[0]);
+          } else {
+            if (ws) {
+              ws.send(JSON.stringify({ id: model.id, type: eventName, value: evt.target.value }));
+            }
+          }
         } else {
           if (ws) {
-            ws.send(JSON.stringify({ id: model.id, type: eventName, value: evt.target.value }));
+            ws.send(JSON.stringify({ id: model.id, type: eventName }));
           }
         }
       };
