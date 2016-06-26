@@ -46,6 +46,10 @@ func NewContext(display chan *bootreactor.DisplayUpdate, userEvents chan *bootre
 	}
 }
 
+var breadcrumbItemUI = bootreactor.MustParseDisplayModel(`
+	<bs.Breadcrumb.Item id="breadcrumb_item" href="#" />
+`)
+
 var navigationUI = bootreactor.MustParseDisplayModel(`
   <div>
   	<bs.Navbar bool:fluid="true">
@@ -58,15 +62,37 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
   		 	<bs.NavItem href="#/add_application"><bs.Glyphicon glyph="plus"/></bs.NavItem>
   		 </bs.Nav>
   	</bs.Navbar>
+
+		<bs.Breadcrumb id="breadcrumb" />
+
   	<bs.Grid bool:fluid="true">
-  	 <bs.Row>
-  		 <bs.Col int:mdOffset="2" int:md="8" int:smOffset="0" int:sm="12">
-			 	<div id="content" className="container">Welcome!</div>
-			 </bs.Col>
-  	 </bs.Row>
+			<bs.Row>
+				<bs.Col int:mdOffset="2" int:md="8" int:smOffset="0" int:sm="12">
+					<div id="content" className="container">Welcome!</div>
+				</bs.Col>
+			</bs.Row>
   	</bs.Grid>
   </div>
 `)
+
+func WithNavigation(content *bootreactor.DisplayModel, breadcrumbs [][]string) *bootreactor.DisplayModel {
+	view := navigationUI.DeepCopy()
+	if len(breadcrumbs) == 0 {
+		view.DeleteChild("breadcrumb")
+	} else {
+		for i, item := range breadcrumbs {
+			bcItem := breadcrumbItemUI.DeepCopy()
+			bcItem.SetElementText("breadcrumb_item", item[0])
+			bcItem.SetElementAttribute("breadcrumb_item", "href", item[1])
+			if i == len(breadcrumbs)-1 {
+				bcItem.SetElementAttribute("breadcrumb_item", "active", true)
+			}
+			view.AppendChild("breadcrumb", bcItem)
+		}
+	}
+	view.ReplaceChild("content", content)
+	return view
+}
 
 var appGroupItem = bootreactor.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
 
@@ -94,7 +120,6 @@ func MainScreen(ctx *Context) (Screen, error) {
 	for {
 		select {
 		case apps := <-ch:
-			view := navigationUI.DeepCopy()
 			listGroup := appGroupUI.DeepCopy()
 			for _, app := range apps.([]string) {
 				item := appGroupItem.DeepCopy()
@@ -103,9 +128,8 @@ func MainScreen(ctx *Context) (Screen, error) {
 				listGroup.AppendChild("list_group", item)
 			}
 
-			view.ReplaceChild("content", listGroup)
 			ctx.display <- &bootreactor.DisplayUpdate{
-				Model: view,
+				Model: WithNavigation(listGroup, [][]string{{"Home", "#/"}}),
 			}
 		case evt, eventOK := <-ctx.userEvents:
 			if !eventOK {

@@ -28,7 +28,7 @@ func addApplicationForm(alert error, hideFileForm bool, appName string) *bootrea
 		addView.DeleteChild("deploy_btn")
 	}
 
-	return navigationUI.DeepCopy().ReplaceChild("content", addView)
+	return WithNavigation(addView, [][]string{{"Home", "#/"}, {"Add Application", "#/add_application"}})
 }
 
 var addApplicationUI = bootreactor.MustParseDisplayModel(`
