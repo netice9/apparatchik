@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
 	"gitlab.netice9.com/dragan/go-bootreactor"
@@ -14,6 +15,8 @@ type Context struct {
 	apparatchik *core.Apparatchik
 }
 
+type Screen func(*Context) (Screen, error)
+
 func (c *Context) ScreenForEvent(evt *bootreactor.UserEvent) Screen {
 	if evt.ElementID == "main_window" && evt.Type == "popstate" {
 		if evt.Value == "#/add_application" {
@@ -21,6 +24,15 @@ func (c *Context) ScreenForEvent(evt *bootreactor.UserEvent) Screen {
 		}
 		if evt.Value == "#/" || evt.Value == "#" || evt.Value == "" {
 			return MainScreen
+		}
+		if strings.HasPrefix(evt.Value, "#/apps/") {
+			appName := strings.TrimPrefix(evt.Value, "#/apps/")
+			app, err := c.apparatchik.GetApplicationByName(appName)
+			if err != nil {
+				return nil
+			} else {
+				return Application(app)
+			}
 		}
 	}
 	return nil
@@ -43,12 +55,14 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
   			</bs.Navbar.Brand>
   		</bs.Navbar.Header>
   		<bs.Nav bool:pullRight="true">
-  		 	<bs.NavItem href="#/add_application">	<bs.Glyphicon glyph="plus"/></bs.NavItem>
+  		 	<bs.NavItem href="#/add_application"><bs.Glyphicon glyph="plus"/></bs.NavItem>
   		 </bs.Nav>
   	</bs.Navbar>
   	<bs.Grid bool:fluid="true">
   	 <bs.Row>
-  		 <bs.Col int:mdOffset="2" int:md="8" int:smOffset="0" int:sm="12"> <div id="content" className="container">Welcome!</div> </bs.Col>
+  		 <bs.Col int:mdOffset="2" int:md="8" int:smOffset="0" int:sm="12">
+			 	<div id="content" className="container">Welcome!</div>
+			 </bs.Col>
   	 </bs.Row>
   	</bs.Grid>
   </div>
@@ -57,10 +71,18 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
 var appGroupItem = bootreactor.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
 
 var appGroupUI = bootreactor.MustParseDisplayModel(`
-<bs.ListGroup id="list_group"/>
+<div className="panel panel-default">
+	<div className="panel-heading">
+		<h3>Active Applications</h3>
+	</div>
+	<div className="panel-body">
+		<bs.ListGroup id="list_group"/>
+	</div>
+	<div className="panel-footer">
+		<bs.Button href="#/add_application"><bs.Glyphicon glyph="plus"/></bs.Button>
+	</div>
+</div>
 `)
-
-type Screen func(*Context) (Screen, error)
 
 func MainScreen(ctx *Context) (Screen, error) {
 
@@ -77,7 +99,7 @@ func MainScreen(ctx *Context) (Screen, error) {
 			for _, app := range apps.([]string) {
 				item := appGroupItem.DeepCopy()
 				item.SetElementText("list_element", app)
-				item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/%s", app))
+				item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/apps/%s", app))
 				listGroup.AppendChild("list_group", item)
 			}
 

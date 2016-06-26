@@ -45,6 +45,16 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 
 }
 
+func (a *Apparatchik) GetApplicationByName(name string) (*Application, error) {
+	a.Lock()
+	defer a.Unlock()
+	app, found := a.applications[name]
+	if !found {
+		return nil, ErrApplicationNotFound
+	}
+	return app, nil
+}
+
 func (a *Apparatchik) Stop() {
 	a.Lock()
 	defer a.Unlock()

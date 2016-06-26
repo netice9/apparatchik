@@ -52,10 +52,17 @@ func (n *Notifier) RemoveListener(listenerChannel chan interface{}) {
 			filtered = append(filtered, existing)
 		}
 	}
-
 	n.listeners = filtered
-
 }
+
+func (n *Notifier) Close() {
+	n.Lock()
+	defer n.Unlock()
+	for _, listener := range n.listeners {
+		close(listener)
+	}
+}
+
 func (n *Notifier) NumberOfListeners() int {
 	n.Lock()
 	defer n.Unlock()

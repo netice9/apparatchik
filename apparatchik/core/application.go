@@ -11,6 +11,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/notifier-go"
 )
 
 var (
@@ -27,6 +28,7 @@ type Application struct {
 	MainGoal            string
 	ApplicationFileName string
 	DockerClient        *docker.Client
+	*notifier.Notifier
 }
 
 type ApplicationStatus struct {
@@ -36,31 +38,20 @@ type ApplicationStatus struct {
 }
 
 func (a *Application) GoalStatusUpdate(goalName, status string) {
-	goals := a.copyGoals()
-	for name, goal := range goals {
+
+	for name, goal := range a.Goals {
 		if name != goalName {
 			goal.SiblingStatusUpdate(goalName, status)
 		}
 	}
-}
-
-func (a *Application) copyGoals() map[string]*Goal {
-	a.Lock()
-	defer a.Unlock()
-	goals := map[string]*Goal{}
-
-	for name, goal := range a.Goals {
-		goals[name] = goal
-	}
-
-	return goals
+	a.Notify(a.Status())
 }
 
 func (a *Application) Status() *ApplicationStatus {
-	goals := a.copyGoals()
+
 	goalStats := map[string]*GoalStatus{}
 
-	for name, goal := range goals {
+	for name, goal := range a.Goals {
 		goalStats[name] = goal.Status()
 	}
 
@@ -175,9 +166,12 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 		MainGoal:            applicationConfiguration.MainGoal,
 		ApplicationFileName: fileName,
 		DockerClient:        dockerClient,
+		Notifier:            notifier.NewNotifier(),
 	}
 
 	app.startGoals()
+
+	app.Notify(app.Status())
 
 	return app
 
@@ -188,13 +182,12 @@ func (a *Application) TerminateApplication() {
 	for _, goal := range a.Goals {
 		goal.TerminateGoal()
 	}
+	a.Notifier.Close()
 }
 
 func (a *Application) RequestGoalStart(name string) {
 
-	goals := a.copyGoals()
-
-	if goal, ok := goals[name]; ok {
+	if goal, ok := a.Goals[name]; ok {
 		goal.Start()
 		return
 	}
@@ -203,9 +196,8 @@ func (a *Application) RequestGoalStart(name string) {
 }
 
 func (a *Application) HandleDockerEvent(evt *docker.APIEvents) {
-	goals := a.copyGoals()
 
-	for _, goal := range goals {
+	for _, goal := range a.Goals {
 		goal.HandleDockerEvent(evt)
 	}
 }

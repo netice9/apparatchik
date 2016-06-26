@@ -104,8 +104,8 @@
 		},
 		{
 			"path": "github.com/netice9/notifier-go",
-			"revision": "5e1e7c383336b0cd985a3f430293353525fbd080",
-			"revisionTime": "2016-06-15T00:02:43+01:00"
+			"revision": "7a74bfbf7fff5045a61138e653d2ba6b31b1843b",
+			"revisionTime": "2016-06-24T16:11:04+01:00"
 		},
 		{
 			"path": "github.com/onsi/ginkgo",

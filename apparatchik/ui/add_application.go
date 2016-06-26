@@ -9,12 +9,6 @@ import (
 	"gitlab.netice9.com/dragan/go-bootreactor"
 )
 
-// <div>
-// 	<Dropzone onDrop={this.onDrop}>
-// 		<div>Try dropping some files here, or click to select files to upload.</div>
-// 	</Dropzone>
-// </div>
-
 func addApplicationForm(alert error, hideFileForm bool, appName string) *bootreactor.DisplayModel {
 	addView := addApplicationUI.DeepCopy()
 
