@@ -12,6 +12,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/netice9/notifier-go"
 )
 
 const trackerHistorySize = 120
@@ -40,6 +41,7 @@ type GoalStatus struct {
 
 type Goal struct {
 	sync.Mutex
+	*notifier.Notifier
 	application          *Application
 	Name                 string
 	ApplicationName      string
@@ -81,12 +83,14 @@ func (goal *Goal) TerminateGoal() {
 			Force:         true,
 		})
 	}
+	goal.Notifier.Close()
 }
 
 func (goal *Goal) SetCurrentStatus(status string) {
 	goal.Lock()
 	defer goal.Unlock()
 	goal.setCurrentStatus(status)
+	goal.broadcastStatus()
 }
 
 func (goal *Goal) setCurrentStatus(status string) {
@@ -373,6 +377,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	goal := &Goal{
 		application:          application,
+		Notifier:             notifier.NewNotifier(),
 		Name:                 goalName,
 		ApplicationName:      applicationName,
 		DockerClient:         dockerClient,
@@ -556,7 +561,13 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	goal.FetchImage()
 
+	goal.broadcastStatus()
+
 	return goal
+}
+
+func (g *Goal) broadcastStatus() {
+	g.Notify(g.status())
 }
 
 func replaceRelativePath(pth string) string {
@@ -646,14 +657,18 @@ func (goal *Goal) SiblingStatusUpdate(goalName, status string) {
 	}
 }
 
-func (goal *Goal) Status() *GoalStatus {
-	goal.Lock()
-	defer goal.Unlock()
+func (goal *Goal) status() *GoalStatus {
 	return &GoalStatus{
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
 		ExitCode: goal.ExitCode,
 	}
+}
+
+func (goal *Goal) Status() *GoalStatus {
+	goal.Lock()
+	defer goal.Unlock()
+	return goal.status()
 }
 
 func (goal *Goal) Start() {

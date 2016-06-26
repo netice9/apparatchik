@@ -10,7 +10,7 @@ import (
 
 var goalRowUI = bootreactor.MustParseDisplayModel(`
   <tr id="row">
-    <td id="goal_name" />
+    <td ><a id="goal_name" href="#" className="btn btn-default"/></td>
     <td id="goal_state" />
     <td id="goal_actions" />
   </tr>
@@ -71,6 +71,7 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 		for name, goal := range status.Goals {
 			row := goalRowUI.DeepCopy()
 			row.SetElementText("goal_name", name)
+			row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", app.Name, goal.Name))
 			row.SetElementText("goal_state", goal.Status)
 			view.AppendChild("goal_table_body", row)
 		}

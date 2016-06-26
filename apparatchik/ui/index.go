@@ -26,10 +26,22 @@ func (c *Context) ScreenForEvent(evt *bootreactor.UserEvent) Screen {
 			return MainScreen
 		}
 		if strings.HasPrefix(evt.Value, "#/apps/") {
-			appName := strings.TrimPrefix(evt.Value, "#/apps/")
+
+			parts := strings.Split(strings.TrimPrefix(evt.Value, "#/apps/"), "/")
+
+			appName := parts[0]
+
 			app, err := c.apparatchik.GetApplicationByName(appName)
 			if err != nil {
 				return nil
+			}
+
+			if len(parts) == 2 {
+				goal, found := app.Goals[parts[1]]
+				if !found {
+					return nil
+				}
+				return Goal(goal)
 			} else {
 				return Application(app)
 			}
