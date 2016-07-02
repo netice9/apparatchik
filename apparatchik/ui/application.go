@@ -63,7 +63,7 @@ var applicationUI = bootreactor.MustParseDisplayModel(`
 
 func Application(app *core.Application) func(*Context) (Screen, error) {
 
-	applicationView := func(status *core.ApplicationStatus, showModal bool, alert error) *bootreactor.DisplayModel {
+	applicationView := func(status core.ApplicationStatus, showModal bool, alert error) *bootreactor.DisplayModel {
 		view := applicationUI.DeepCopy()
 		view.SetElementAttribute("app_panel", "header", status.Name)
 		view.SetElementText("main_goal", app.MainGoal)
@@ -89,11 +89,12 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 	}
 
 	return func(ctx *Context) (Screen, error) {
-		appUpdates := make(chan interface{})
-		app.AddListener(appUpdates)
+
+		appUpdates := app.AddListener(0)
+
 		showModal := false
 
-		var applicationStatus *core.ApplicationStatus
+		var applicationStatus core.ApplicationStatus
 
 		title := fmt.Sprintf("Apparatchik: Application %s", app.Name)
 
@@ -112,9 +113,8 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 						Location: &location,
 					}
 				} else {
-					applicationStatus = update.(*core.ApplicationStatus)
 					ctx.display <- &bootreactor.DisplayUpdate{
-						Model: applicationView(applicationStatus, showModal, alert),
+						Model: applicationView(update, showModal, alert),
 					}
 				}
 			case evt, evtRead := <-ctx.userEvents:

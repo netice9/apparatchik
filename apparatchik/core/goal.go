@@ -1,5 +1,10 @@
 package core
 
+//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=GoalStatus -out-dir=.
+//go:generate mv notifier.go goal_notifier.go
+//go:generate sed -i "s/^package notifier/package core/" goal_notifier.go
+//go:generate sed -i "s/Notifier/GoalNotifier/g" goal_notifier.go
+
 import (
 	"errors"
 	"fmt"
@@ -12,7 +17,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/notifier-go"
 )
 
 const trackerHistorySize = 120
@@ -41,7 +45,7 @@ type GoalStatus struct {
 
 type Goal struct {
 	sync.Mutex
-	*notifier.Notifier
+	*GoalNotifier
 	application          *Application
 	Name                 string
 	ApplicationName      string
@@ -83,7 +87,7 @@ func (goal *Goal) TerminateGoal() {
 			Force:         true,
 		})
 	}
-	goal.Notifier.Close()
+	goal.GoalNotifier.Close()
 }
 
 func (goal *Goal) SetCurrentStatus(status string) {
@@ -377,7 +381,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	goal := &Goal{
 		application:          application,
-		Notifier:             notifier.NewNotifier(),
+		GoalNotifier:         NewGoalNotifier(GoalStatus{}),
 		Name:                 goalName,
 		ApplicationName:      applicationName,
 		DockerClient:         dockerClient,
@@ -657,15 +661,15 @@ func (goal *Goal) SiblingStatusUpdate(goalName, status string) {
 	}
 }
 
-func (goal *Goal) status() *GoalStatus {
-	return &GoalStatus{
+func (goal *Goal) status() GoalStatus {
+	return GoalStatus{
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
 		ExitCode: goal.ExitCode,
 	}
 }
 
-func (goal *Goal) Status() *GoalStatus {
+func (goal *Goal) Status() GoalStatus {
 	goal.Lock()
 	defer goal.Unlock()
 	return goal.status()

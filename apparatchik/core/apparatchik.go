@@ -1,17 +1,21 @@
 package core
 
+//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=[]string -out-dir=.
+//go:generate mv notifier.go apparatchik_notifier.go
+//go:generate sed -i "s/^package notifier/package core/" apparatchik_notifier.go
+//go:generate sed -i "s/Notifier/ApparatchikNotifier/g" apparatchik_notifier.go
+
 import (
 	"errors"
 	"sort"
 	"sync"
 
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/notifier-go"
 )
 
 type Apparatchik struct {
 	sync.Mutex
-	*notifier.Notifier
+	*ApparatchikNotifier
 	applications        map[string]*Application
 	dockerClient        *docker.Client
 	dockerEventsChannel chan *docker.APIEvents
@@ -28,7 +32,7 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 		applications:        map[string]*Application{},
 		dockerClient:        dockerClient,
 		dockerEventsChannel: dockerEventsChannel,
-		Notifier:            &notifier.Notifier{},
+		ApparatchikNotifier: NewApparatchikNotifier([]string{}),
 	}
 
 	// call HandleDockerEvent for every new docker event
@@ -72,10 +76,10 @@ func (a *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
 	}
 }
 
-func (p *Apparatchik) ApplicationStatus(applicatioName string) (*ApplicationStatus, error) {
+func (p *Apparatchik) ApplicationStatus(applicatioName string) (ApplicationStatus, error) {
 	app, err := p.ApplicationByName(applicatioName)
 	if err != nil {
-		return nil, err
+		return ApplicationStatus{}, err
 	}
 	return app.Status(), nil
 }
@@ -94,7 +98,7 @@ func (a *Apparatchik) GetContainerIDForGoal(applicatioName, goalName string) (*s
 	return goal.ContainerId, nil
 }
 
-func (a *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (*ApplicationStatus, error) {
+func (a *Apparatchik) NewApplication(name string, config *ApplicationConfiguration) (ApplicationStatus, error) {
 
 	a.Lock()
 	defer a.Unlock()
@@ -102,7 +106,7 @@ func (a *Apparatchik) NewApplication(name string, config *ApplicationConfigurati
 	_, found := a.applications[name]
 
 	if found {
-		return nil, ErrApplicationAlreadyExists
+		return ApplicationStatus{}, ErrApplicationAlreadyExists
 	}
 
 	application := NewApplication(name, config, a.dockerClient)

@@ -2,6 +2,7 @@ package bootreactor
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -49,7 +50,47 @@ func ParseDisplayModel(src string) (*DisplayModel, error) {
 				if attribute.Name.Local == "id" {
 					model.ID = attribute.Value
 				} else if attribute.Name.Local == "reportEvents" {
-					model.ReportEvents = strings.Split(attribute.Value, ",")
+					re := []ReportEvent{}
+
+					evts := strings.Split(attribute.Value, " ")
+
+					for _, evtString := range evts {
+
+						parts := strings.Split(evtString, ":")
+
+						rest := parts[1:]
+
+						sp := false
+						pd := false
+
+						extraValues := []string{}
+
+						for _, v := range rest {
+							switch v {
+							case "SP":
+								sp = true
+							case "PD":
+								pd = true
+							default:
+								if strings.HasPrefix(v, "X-") {
+									extraValues = append(extraValues, v[2:])
+								} else {
+									return nil, fmt.Errorf("Unknown reportEvent parameter %#v", v)
+								}
+							}
+						}
+
+						evt := ReportEvent{
+							Name:            parts[0],
+							StopPropagation: sp,
+							PreventDefault:  pd,
+							ExtraValues:     extraValues,
+						}
+
+						re = append(re, evt)
+					}
+
+					model.ReportEvents = re
 				} else {
 					var value interface{} = attribute.Value
 					if attribute.Name.Space == "bool" {

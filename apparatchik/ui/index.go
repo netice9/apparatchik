@@ -117,23 +117,21 @@ var appGroupUI = bootreactor.MustParseDisplayModel(`
 		<bs.ListGroup id="list_group"/>
 	</div>
 	<div className="panel-footer">
-		<bs.Button href="#/add_application"><bs.Glyphicon glyph="plus"/> Deploy an Application</bs.Button>
+		<bs.Button draggable="true" href="#/add_application" reportEvents="contextMenu:PD:SP mouseUp:SP:PD:X-button:X-buttons mouseDown:SP:PD:X-button:X-buttons dragStart drag:X-pageX:X-pageY dragOver drop wheel:PD:X-deltaY"><bs.Glyphicon glyph="plus"/> Deploy an Application</bs.Button>
 	</div>
 </div>
 `)
 
 func MainScreen(ctx *Context) (Screen, error) {
 
-	ch := make(chan interface{})
-
-	ctx.apparatchik.AddListener(ch)
+	ch := ctx.apparatchik.AddListener(0)
 	defer ctx.apparatchik.RemoveListener(ch)
 
 	for {
 		select {
 		case apps := <-ch:
 			listGroup := appGroupUI.DeepCopy()
-			for _, app := range apps.([]string) {
+			for _, app := range apps {
 				item := appGroupItem.DeepCopy()
 				item.SetElementText("list_element", app)
 				item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/apps/%s", app))
@@ -144,6 +142,7 @@ func MainScreen(ctx *Context) (Screen, error) {
 				Model: WithNavigation(listGroup, [][]string{{"Home", "#/"}}),
 			}
 		case evt, eventOK := <-ctx.userEvents:
+			fmt.Println(evt)
 			if !eventOK {
 				return nil, errors.New("closed")
 			}

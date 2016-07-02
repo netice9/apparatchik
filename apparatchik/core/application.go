@@ -1,5 +1,10 @@
 package core
 
+//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=ApplicationStatus -out-dir=.
+//go:generate mv notifier.go application_notifier.go
+//go:generate sed -i "s/^package notifier/package core/" application_notifier.go
+//go:generate sed -i "s/Notifier/ApplicationNotifier/g" application_notifier.go
+
 import (
 	"encoding/json"
 	"errors"
@@ -11,7 +16,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/netice9/notifier-go"
 )
 
 var (
@@ -28,13 +32,19 @@ type Application struct {
 	MainGoal            string
 	ApplicationFileName string
 	DockerClient        *docker.Client
-	*notifier.Notifier
+	*ApplicationNotifier
 }
 
 type ApplicationStatus struct {
-	Name     string                 `json:"name"`
-	Goals    map[string]*GoalStatus `json:"goals"`
-	MainGoal string                 `json:"main_goal"`
+	Name     string                `json:"name"`
+	Goals    map[string]GoalStatus `json:"goals"`
+	MainGoal string                `json:"main_goal"`
+}
+
+func NewApplicationStatus() ApplicationStatus {
+	return ApplicationStatus{
+		Goals: map[string]GoalStatus{},
+	}
 }
 
 func (a *Application) GoalStatusUpdate(goalName, status string) {
@@ -47,15 +57,15 @@ func (a *Application) GoalStatusUpdate(goalName, status string) {
 	a.Notify(a.Status())
 }
 
-func (a *Application) Status() *ApplicationStatus {
+func (a *Application) Status() ApplicationStatus {
 
-	goalStats := map[string]*GoalStatus{}
+	goalStats := map[string]GoalStatus{}
 
 	for name, goal := range a.Goals {
 		goalStats[name] = goal.Status()
 	}
 
-	return &ApplicationStatus{
+	return ApplicationStatus{
 		Name:     a.Name,
 		Goals:    goalStats,
 		MainGoal: a.MainGoal,
@@ -166,7 +176,7 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 		MainGoal:            applicationConfiguration.MainGoal,
 		ApplicationFileName: fileName,
 		DockerClient:        dockerClient,
-		Notifier:            notifier.NewNotifier(),
+		ApplicationNotifier: NewApplicationNotifier(NewApplicationStatus()),
 	}
 
 	app.startGoals()
@@ -182,7 +192,7 @@ func (a *Application) TerminateApplication() {
 	for _, goal := range a.Goals {
 		goal.TerminateGoal()
 	}
-	a.Notifier.Close()
+	a.ApplicationNotifier.Close()
 }
 
 func (a *Application) RequestGoalStart(name string) {

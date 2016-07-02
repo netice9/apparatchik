@@ -8,7 +8,14 @@ type DisplayModel struct {
 	Text         *string                `json:"te,omitempty"`
 	Children     []*DisplayModel        `json:"ch,omitempty"`
 	Attributes   map[string]interface{} `json:"at,omitempty"`
-	ReportEvents []string               `json:"ev,omitempty"`
+	ReportEvents []ReportEvent          `json:"ev,omitempty"`
+}
+
+type ReportEvent struct {
+	Name            string   `json:"name,omitempty"`
+	StopPropagation bool     `json:"sp,omitempty"`
+	PreventDefault  bool     `json:"pd,omitempty"`
+	ExtraValues     []string `json:"xv,omitempty"`
 }
 
 type DisplayUpdate struct {

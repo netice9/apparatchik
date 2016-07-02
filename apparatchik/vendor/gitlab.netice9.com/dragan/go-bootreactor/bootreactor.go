@@ -59,8 +59,9 @@ func NewReactorHandler(listener ClientConnectedListener) func(w http.ResponseWri
 }
 
 type UserEvent struct {
-	ElementID string `json:"id,omitempty"`
-	Type      string `json:"type,omitempty"`
-	Value     string `json:"value,omitempty"`
-	Data      string `json:"data,omitempty"`
+	ElementID   string                 `json:"id,omitempty"`
+	Type        string                 `json:"type,omitempty"`
+	Value       string                 `json:"value,omitempty"`
+	Data        string                 `json:"data,omitempty"`
+	ExtraValues map[string]interface{} `json:"xv,omitempty"`
 }

@@ -51909,19 +51909,15 @@ var Wrapper = React.createClass({
       }
     });
 
-    var eventHandlers = _.map(model.ev || [], function (eventName) {
+    var eventHandlers = _.map(model.ev || [], function (eventData) {
 
-      var preventDefault = false;
+      var preventDefault = eventData.pd;
 
-      var stopPropagation = false;
+      var stopPropagation = eventData.sp;
 
-      var parts = eventName.split(":");
+      var eventName = eventData.name;
 
-      if (parts.length == 2) {
-        preventDefault = parts[0] === "pd";
-        stopPropagation = parts[0] === "sp";
-        eventName = parts[1];
-      }
+      var extraValues = eventData.xv || [];
 
       var onName = "on" + eventName.charAt(0).toUpperCase() + eventName.slice(1);
       attrs[onName] = function (evt) {
@@ -51934,6 +51930,12 @@ var Wrapper = React.createClass({
         }
 
         if (evt) {
+
+          var xv = _.reduce(extraValues, function (x, n) {
+            x[n] = evt[n];
+            return x;
+          }, {});
+
           var files = evt.target.files || [];
 
           if (files.length > 0) {
@@ -51941,14 +51943,14 @@ var Wrapper = React.createClass({
             var reader = new FileReader();
             reader.onload = function (theFile) {
               if (ws) {
-                ws.send(JSON.stringify({ id: model.id, type: eventName, value: files[0].name, data: reader.result }));
+                ws.send(JSON.stringify({ id: model.id, type: eventName, value: files[0].name, data: reader.result, xv: xv }));
               }
             };
 
             reader.readAsText(files[0]);
           } else {
             if (ws) {
-              ws.send(JSON.stringify({ id: model.id, type: eventName, value: evt.target.value }));
+              ws.send(JSON.stringify({ id: model.id, type: eventName, value: evt.target.value, xv: xv }));
             }
           }
         } else {
