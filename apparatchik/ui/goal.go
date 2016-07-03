@@ -3,7 +3,9 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/apparatchik/apparatchik/core"
 	"github.com/netice9/apparatchik/apparatchik/util"
 	"gitlab.netice9.com/dragan/go-bootreactor"
@@ -42,15 +44,28 @@ var goalUI = bootreactor.MustParseDisplayModel(`
 		  <polyline id="memory_line" fill="none" stroke="#0074d9" stroke-width="3" points=""/>
 		</svg>
   </bs.Panel>
+	<bs.Panel header="Output">
+		<pre id="out" reportEvents="wheel:PD:X-deltaY" />
+	</bs.Panel>
   <span>TBD!</span>
 `)
 
+const outputHeight = 25
+
 func Goal(goal *core.Goal) func(*Context) (Screen, error) {
-	goalView := func(stat core.GoalStatus) *bootreactor.DisplayModel {
+	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bootreactor.DisplayModel {
 		view := goalUI.DeepCopy()
 
 		view.SetElementAttribute("cpu_line", "points", util.TimeSeriesToLine(stat.Stats.CpuStats, 500, 100))
 		view.SetElementAttribute("memory_line", "points", util.TimeSeriesToLine(stat.Stats.MemStats, 500, 100))
+
+		lastLine := fromLine + outputHeight
+		if lastLine > len(output) {
+			lastLine = len(output)
+		}
+
+		view.SetElementText("out", strings.Join(output[fromLine:lastLine], "\n")+" ")
+
 		// view.SetElementAttribute("app_panel", "header", status.Name)
 		// view.SetElementText("main_goal", app.MainGoal)
 		//
@@ -71,7 +86,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 		// view.SetElementAttribute("delete_confirm_modal", "show", showModal)
 		// view.SetElementText("application_name", app.Name)
 		//
-		return WithNavigation(view, [][]string{{"Home", "#/"}, {goal.Name, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
+		return WithNavigation(view, [][]string{{"Home", "#/"}, {goal.ApplicationName, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
 	}
 	return func(ctx *Context) (Screen, error) {
 
@@ -84,18 +99,70 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 			Title: &title,
 		}
 
+		containerId := goal.GetContainerID()
+
+		tracker := util.NewOutputTracker(2000)
+
+		go func() {
+			goal.DockerClient.Logs(docker.LogsOptions{
+				Container:    *containerId,
+				OutputStream: tracker,
+				ErrorStream:  tracker,
+				Stdout:       true,
+				Stderr:       true,
+				Follow:       true,
+				Tail:         "all",
+				Timestamps:   true,
+			})
+
+		}()
+
+		fromLine := 0
+
+		outputTrackerUpdates := tracker.AddListener(0)
+		defer close(outputTrackerUpdates)
+
+		output := []string{}
+		stat := core.GoalStatus{}
+
 		for {
 			select {
-			case goalUpdate := <-goalUpdates:
+			case trackerUpdate := <-outputTrackerUpdates:
+
+				output = trackerUpdate
 				ctx.display <- &bootreactor.DisplayUpdate{
-					Model: goalView(goalUpdate),
+					Model: goalView(stat, output, fromLine),
+				}
+
+			case goalUpdate := <-goalUpdates:
+				stat = goalUpdate
+				ctx.display <- &bootreactor.DisplayUpdate{
+					Model: goalView(stat, output, fromLine),
 				}
 				// fmt.Println(goalUpdate.Stats)
 			case evt, eventRead := <-ctx.userEvents:
+
 				if eventRead {
+
 					screeen := ctx.ScreenForEvent(evt)
 					if screeen != nil {
 						return screeen, nil
+					}
+
+					if evt.Type == "wheel" {
+						deltaY := evt.ExtraValues["deltaY"].(float64)
+						if deltaY > 0 {
+							if (fromLine + outputHeight) < len(output) {
+								fromLine++
+							}
+						} else {
+							if fromLine > 0 {
+								fromLine--
+							}
+						}
+						ctx.display <- &bootreactor.DisplayUpdate{
+							Model: goalView(stat, output, fromLine),
+						}
 					}
 				} else {
 					return nil, errors.New("client disconnected")
