@@ -142,7 +142,6 @@ func MainScreen(ctx *Context) (Screen, error) {
 				Model: WithNavigation(listGroup, [][]string{{"Home", "#/"}}),
 			}
 		case evt, eventOK := <-ctx.userEvents:
-			fmt.Println(evt)
 			if !eventOK {
 				return nil, errors.New("closed")
 			}

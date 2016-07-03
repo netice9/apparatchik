@@ -11,43 +11,44 @@ import (
 	"gitlab.netice9.com/dragan/go-bootreactor"
 )
 
+// 10 000 000
+
 var goalUI = bootreactor.MustParseDisplayModel(`
-  <bs.Panel id="goal_panel" header="">
-		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="100%" class="chart">
-		  <polyline transform="translate(100,20)" id="cpu_line" fill="none" stroke="#0074d9" stroke-width="3" points=""/>
-			<path d="M61 159v-3M93.714 159v-3M126.43 159v-3M159.14 159v-3M191.86 159v-3M224.57 159v-3M257.29 159v-3M290 159v-3M58 156h3M58 132.6h3M58 109.2h3M58 85.8h3M58 62.4h3M58 39h3" stroke-width="1px" stroke="#333"/>
-			<path d="M58 156h235"/>
-			<path d="M61 36v123"/>
-			<g font-size="8px" font-family="Georgia" fill="#333">
-				<g text-anchor="end">
-					<text x="56" y="159">0</text>
-					<text x="56" y="135.6">3.6</text>
-					<text x="56" y="112.2">7.2</text>
-					<text x="56" y="88.8">10.8</text>
-					<text x="56" y="65.4">14.4</text>
-					<text x="56" y="42">18</text>
+	<div>
+	  <bs.Panel id="goal_panel" header="CPU Stats">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" class="chart">
+				<g transform="translate(10,20)">
+					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
+					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
+					<polyline transform="translate(40,0)" id="cpu_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+					<g fontSize="8px" fontFamily="Georgia" fill="#333">
+						<g textAnchor="end">
+							<text id="max_cpu" x="26" y="2">100 %</text>
+							<text x="26" y="102">0 %</text>
+						</g>
+					</g>
 				</g>
-				<g text-anchor="middle">
-					<text y="168" x="77.357">Mon</text>
-					<text y="168" x="110.07">Tue</text>
-					<text y="168" x="142.79">Wed</text>
-					<text y="168" x="175.5">Thu</text>
-					<text y="168" x="208.21">Fri</text>
-					<text y="168" x="240.93">Sat</text>
-					<text y="168" x="273.64">Sun</text>
+			</svg>
+		</bs.Panel>
+		<bs.Panel id="goal_panel" header="Memory Stats">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" class="chart">
+				<g transform="translate(10,20)">
+				  <polyline transform="translate(40,0)" id="memory_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
+					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
+					<g fontSize="8px" fontFamily="Georgia" fill="#333">
+						<g textAnchor="end">
+							<text id="max_memory" x="26" y="2">100 MB</text>
+							<text x="26" y="102">0 MB</text>
+						</g>
+					</g>
 				</g>
-				<text text-anchor="middle" font-family="sans-serif" fill="#000" y="184" x="175.5">Days of the week</text>
-				<text text-anchor="middle" font-family="sans-serif" fill="#000" y="97.5" x="26" transform="rotate(270,26,97.5)">Hours awake</text>
-			</g>
-		</svg>
-		<svg viewBox="0 0 300 200" width="100%" class="chart">
-		  <polyline id="memory_line" fill="none" stroke="#0074d9" stroke-width="3" points=""/>
-		</svg>
-  </bs.Panel>
-	<bs.Panel header="Output">
-		<pre id="out" reportEvents="wheel:PD:X-deltaY" />
-	</bs.Panel>
-  <span>TBD!</span>
+			</svg>
+	  </bs.Panel>
+		<bs.Panel id="output_panel" header="Output">
+			<pre id="out" reportEvents="wheel:PD:X-deltaY" />
+		</bs.Panel>
+	</div>
 `)
 
 const outputHeight = 25
@@ -56,36 +57,26 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bootreactor.DisplayModel {
 		view := goalUI.DeepCopy()
 
-		view.SetElementAttribute("cpu_line", "points", util.TimeSeriesToLine(stat.Stats.CpuStats, 500, 100))
-		view.SetElementAttribute("memory_line", "points", util.TimeSeriesToLine(stat.Stats.MemStats, 500, 100))
+		cpuPoints, cpuMax := util.TimeSeriesToLine(stat.Stats.CpuStats, 400, 100, 1000000)
+		view.SetElementAttribute("cpu_line", "points", cpuPoints)
+		cpuPercentMax := float64(cpuMax) / 10000000
 
+		view.SetElementText("max_cpu", fmt.Sprintf("%.1f%%", cpuPercentMax))
+
+		memoryPoints, memoryMax := util.TimeSeriesToLine(stat.Stats.MemStats, 400, 100, 1024*1024)
+		memoryMBytes := memoryMax / (1024 * 1024)
+		view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
+
+		view.SetElementAttribute("memory_line", "points", memoryPoints)
 		lastLine := fromLine + outputHeight
 		if lastLine > len(output) {
 			lastLine = len(output)
 		}
 
+		view.SetElementAttribute("output_panel", "header", fmt.Sprintf("Output: Lines %d - %d of %d", fromLine, lastLine, len(output)))
+
 		view.SetElementText("out", strings.Join(output[fromLine:lastLine], "\n")+" ")
 
-		// view.SetElementAttribute("app_panel", "header", status.Name)
-		// view.SetElementText("main_goal", app.MainGoal)
-		//
-		// for name, goal := range status.Goals {
-		//   row := goalRowUI.DeepCopy()
-		//   row.SetElementText("goal_name", name)
-		//   row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", app.Name, goal.Name))
-		//   row.SetElementText("goal_state", goal.Status)
-		//   view.AppendChild("goal_table_body", row)
-		// }
-		//
-		// if alert != nil {
-		//   view.SetElementText("alert", alert.Error())
-		// } else {
-		//   view.DeleteChild("alert")
-		// }
-		//
-		// view.SetElementAttribute("delete_confirm_modal", "show", showModal)
-		// view.SetElementText("application_name", app.Name)
-		//
 		return WithNavigation(view, [][]string{{"Home", "#/"}, {goal.ApplicationName, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
 	}
 	return func(ctx *Context) (Screen, error) {
@@ -103,19 +94,21 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 
 		tracker := util.NewOutputTracker(2000)
 
-		go func() {
-			goal.DockerClient.Logs(docker.LogsOptions{
-				Container:    *containerId,
-				OutputStream: tracker,
-				ErrorStream:  tracker,
-				Stdout:       true,
-				Stderr:       true,
-				Follow:       true,
-				Tail:         "all",
-				Timestamps:   true,
-			})
+		if containerId != nil {
+			go func() {
+				goal.DockerClient.Logs(docker.LogsOptions{
+					Container:    *containerId,
+					OutputStream: tracker,
+					ErrorStream:  tracker,
+					Stdout:       true,
+					Stderr:       true,
+					Follow:       true,
+					Tail:         "all",
+					Timestamps:   true,
+				})
 
-		}()
+			}()
+		}
 
 		fromLine := 0
 
@@ -139,7 +132,6 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 				ctx.display <- &bootreactor.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
 				}
-				// fmt.Println(goalUpdate.Stats)
 			case evt, eventRead := <-ctx.userEvents:
 
 				if eventRead {

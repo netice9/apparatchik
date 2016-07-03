@@ -3,18 +3,19 @@ package util
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
 )
 
-func TimeSeriesToLine(samples []core.Sample, width, height int) string {
+func TimeSeriesToLine(samples []core.Sample, width, height int, lowestMax uint64) (string, uint64) {
 	if len(samples) == 0 {
-		return ""
+		return "", 0
 	}
 	// sample := samples[0]
 
-	minValue := samples[0].Value
-	maxValue := samples[0].Value
+	minValue := uint64(0)
+	maxValue := lowestMax
 	minTime := samples[0].Time
 	maxTime := samples[0].Time
 
@@ -38,7 +39,9 @@ func TimeSeriesToLine(samples []core.Sample, width, height int) string {
 	points := []string{}
 
 	for _, sample := range samples {
-		normalisedTime := float64(sample.Time.UnixNano()-minTime.UnixNano()) / float64(maxTime.UnixNano()-minTime.UnixNano())
+		// normalisedTime := float64(sample.Time.UnixNano()-minTime.UnixNano()) / float64(maxTime.UnixNano()-minTime.UnixNano())
+		normalisedTime := float64(sample.Time.UnixNano()-minTime.UnixNano()) / float64((time.Second * 120).Nanoseconds())
+
 		scaledTime := int(normalisedTime * float64(width))
 
 		normalisedValue := 1.0 - float64(sample.Value-minValue)/float64(maxValue-minValue)
@@ -47,6 +50,6 @@ func TimeSeriesToLine(samples []core.Sample, width, height int) string {
 		points = append(points, fmt.Sprintf("%d,%d", scaledTime, scaledValue))
 	}
 
-	return strings.Join(points, " ")
+	return strings.Join(points, " "), maxValue
 
 }
