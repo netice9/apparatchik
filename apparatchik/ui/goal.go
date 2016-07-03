@@ -1,22 +1,56 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
+	"github.com/netice9/apparatchik/apparatchik/util"
 	"gitlab.netice9.com/dragan/go-bootreactor"
 )
 
 var goalUI = bootreactor.MustParseDisplayModel(`
   <bs.Panel id="goal_panel" header="">
-
+		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="100%" class="chart">
+		  <polyline transform="translate(100,20)" id="cpu_line" fill="none" stroke="#0074d9" stroke-width="3" points=""/>
+			<path d="M61 159v-3M93.714 159v-3M126.43 159v-3M159.14 159v-3M191.86 159v-3M224.57 159v-3M257.29 159v-3M290 159v-3M58 156h3M58 132.6h3M58 109.2h3M58 85.8h3M58 62.4h3M58 39h3" stroke-width="1px" stroke="#333"/>
+			<path d="M58 156h235"/>
+			<path d="M61 36v123"/>
+			<g font-size="8px" font-family="Georgia" fill="#333">
+				<g text-anchor="end">
+					<text x="56" y="159">0</text>
+					<text x="56" y="135.6">3.6</text>
+					<text x="56" y="112.2">7.2</text>
+					<text x="56" y="88.8">10.8</text>
+					<text x="56" y="65.4">14.4</text>
+					<text x="56" y="42">18</text>
+				</g>
+				<g text-anchor="middle">
+					<text y="168" x="77.357">Mon</text>
+					<text y="168" x="110.07">Tue</text>
+					<text y="168" x="142.79">Wed</text>
+					<text y="168" x="175.5">Thu</text>
+					<text y="168" x="208.21">Fri</text>
+					<text y="168" x="240.93">Sat</text>
+					<text y="168" x="273.64">Sun</text>
+				</g>
+				<text text-anchor="middle" font-family="sans-serif" fill="#000" y="184" x="175.5">Days of the week</text>
+				<text text-anchor="middle" font-family="sans-serif" fill="#000" y="97.5" x="26" transform="rotate(270,26,97.5)">Hours awake</text>
+			</g>
+		</svg>
+		<svg viewBox="0 0 300 200" width="100%" class="chart">
+		  <polyline id="memory_line" fill="none" stroke="#0074d9" stroke-width="3" points=""/>
+		</svg>
   </bs.Panel>
   <span>TBD!</span>
 `)
 
 func Goal(goal *core.Goal) func(*Context) (Screen, error) {
-	goalView := func() *bootreactor.DisplayModel {
+	goalView := func(stat core.GoalStatus) *bootreactor.DisplayModel {
 		view := goalUI.DeepCopy()
+
+		view.SetElementAttribute("cpu_line", "points", util.TimeSeriesToLine(stat.Stats.CpuStats, 500, 100))
+		view.SetElementAttribute("memory_line", "points", util.TimeSeriesToLine(stat.Stats.MemStats, 500, 100))
 		// view.SetElementAttribute("app_panel", "header", status.Name)
 		// view.SetElementText("main_goal", app.MainGoal)
 		//
@@ -41,25 +75,35 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 	}
 	return func(ctx *Context) (Screen, error) {
 
-		_ = goal.AddListener(0)
-
-		// var goalStatus *core.GoalStatus
+		goalUpdates := goal.AddListener(0)
+		defer goal.RemoveListener(goalUpdates)
 
 		title := fmt.Sprintf("Apparatchik: Application %s Goal %s", goal.ApplicationName, goal.Name)
 
 		ctx.display <- &bootreactor.DisplayUpdate{
-			Model: goalView(),
 			Title: &title,
 		}
 
-		for evt := range ctx.userEvents {
-			screeen := ctx.ScreenForEvent(evt)
-			if screeen != nil {
-				return screeen, nil
+		for {
+			select {
+			case goalUpdate := <-goalUpdates:
+				ctx.display <- &bootreactor.DisplayUpdate{
+					Model: goalView(goalUpdate),
+				}
+				// fmt.Println(goalUpdate.Stats)
+			case evt, eventRead := <-ctx.userEvents:
+				if eventRead {
+					screeen := ctx.ScreenForEvent(evt)
+					if screeen != nil {
+						return screeen, nil
+					}
+				} else {
+					return nil, errors.New("client disconnected")
+				}
 			}
 		}
 
-		return nil, nil
+		// return nil, nil
 
 	}
 

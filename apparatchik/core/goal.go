@@ -41,6 +41,7 @@ type GoalStatus struct {
 	Name     string `json:"name"`
 	Status   string `json:"status"`
 	ExitCode *int   `json:"exit_code,omitempty"`
+	Stats    Stats  `json:"stats,omitempty"`
 }
 
 type Goal struct {
@@ -662,10 +663,12 @@ func (goal *Goal) SiblingStatusUpdate(goalName, status string) {
 }
 
 func (goal *Goal) status() GoalStatus {
+
 	return GoalStatus{
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
 		ExitCode: goal.ExitCode,
+		Stats:    goal.stats,
 	}
 }
 
@@ -724,6 +727,8 @@ func (goal *Goal) HandleStatsEvent(stats *docker.Stats) {
 		}
 		goal.lastSample = stats
 	}
+
+	goal.broadcastStatus()
 
 }
 
