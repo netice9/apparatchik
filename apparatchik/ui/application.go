@@ -85,7 +85,7 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 		view.SetElementAttribute("delete_confirm_modal", "show", showModal)
 		view.SetElementText("application_name", app.Name)
 
-		return WithNavigation(view, [][]string{{"Home", "#/"}, {app.Name, fmt.Sprintf("#/apps/%s", app.Name)}})
+		return WithNavigation(view, [][]string{{"Applications", "#/"}, {app.Name, fmt.Sprintf("#/apps/%s", app.Name)}})
 	}
 
 	return func(ctx *Context) (Screen, error) {

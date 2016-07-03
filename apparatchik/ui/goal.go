@@ -77,7 +77,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 
 		view.SetElementText("out", strings.Join(output[fromLine:lastLine], "\n")+" ")
 
-		return WithNavigation(view, [][]string{{"Home", "#/"}, {goal.ApplicationName, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
+		return WithNavigation(view, [][]string{{"Applications", "#/"}, {goal.ApplicationName, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
 	}
 	return func(ctx *Context) (Screen, error) {
 

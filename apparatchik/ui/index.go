@@ -77,9 +77,10 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
 
 
   	<bs.Grid bool:fluid="true">
+			<bs.Breadcrumb id="breadcrumb" />
 			<bs.Row>
 				<bs.Col int:mdOffset="1" int:md="10" int:smOffset="0" int:sm="12">
-					<bs.Breadcrumb id="breadcrumb" />
+
 					<div id="content" className="container">Welcome!</div>
 				</bs.Col>
 			</bs.Row>
@@ -139,7 +140,7 @@ func MainScreen(ctx *Context) (Screen, error) {
 			}
 
 			ctx.display <- &bootreactor.DisplayUpdate{
-				Model: WithNavigation(listGroup, [][]string{{"Home", "#/"}}),
+				Model: WithNavigation(listGroup, [][]string{{"Applications", "#/"}}),
 			}
 		case evt, eventOK := <-ctx.userEvents:
 			if !eventOK {
