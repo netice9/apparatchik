@@ -81,10 +81,12 @@ func (n *ApparatchikNotifier) RemoveListener(listenerChannel chan []string) {
 	for _, existing := range n.listeners {
 		if existing != listenerChannel {
 			filtered = append(filtered, existing)
+		} else {
+			close(listenerChannel)
 		}
 	}
 	n.listeners = filtered
-	close(listenerChannel)
+
 }
 
 // Close closes and removes all listeners

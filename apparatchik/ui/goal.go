@@ -118,7 +118,6 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 		fromLine := 0
 
 		outputTrackerUpdates := tracker.AddListener(0)
-		defer close(outputTrackerUpdates)
 
 		output := []string{}
 		stat := core.GoalStatus{}
@@ -126,12 +125,13 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 		for {
 			select {
 			case output = <-outputTrackerUpdates:
-
 				ctx.display <- &bootreactor.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
 				}
-
-			case goalUpdate := <-goalUpdates:
+			case goalUpdate, updateReceived := <-goalUpdates:
+				if !updateReceived {
+					return MainScreen, nil
+				}
 				stat = goalUpdate
 				ctx.display <- &bootreactor.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
