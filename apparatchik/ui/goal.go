@@ -53,6 +53,7 @@ var goalUI = bootreactor.MustParseDisplayModel(`
 
 const outputHeight = 25
 
+// Goal renders goal screen
 func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bootreactor.DisplayModel {
 		view := goalUI.DeepCopy()
@@ -81,7 +82,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 	}
 	return func(ctx *Context) (Screen, error) {
 
-		goalUpdates := goal.AddListener(0)
+		goalUpdates := goal.AddListener(1)
 		defer goal.RemoveListener(goalUpdates)
 
 		title := fmt.Sprintf("Apparatchik: Application %s Goal %s", goal.ApplicationName, goal.Name)
@@ -90,14 +91,14 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 			Title: &title,
 		}
 
-		containerId := goal.GetContainerID()
+		containerID := goal.GetContainerID()
 
 		tracker := util.NewOutputTracker(2000)
 
-		if containerId != nil {
+		if containerID != nil {
 			go func() {
-				goal.DockerClient.Logs(docker.LogsOptions{
-					Container:    *containerId,
+				err := goal.DockerClient.Logs(docker.LogsOptions{
+					Container:    *containerID,
 					OutputStream: tracker,
 					ErrorStream:  tracker,
 					Stdout:       true,
@@ -106,6 +107,10 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 					Tail:         "all",
 					Timestamps:   true,
 				})
+
+				if err != nil {
+					print(err)
+				}
 
 			}()
 		}
@@ -120,9 +125,8 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 
 		for {
 			select {
-			case trackerUpdate := <-outputTrackerUpdates:
+			case output = <-outputTrackerUpdates:
 
-				output = trackerUpdate
 				ctx.display <- &bootreactor.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
 				}

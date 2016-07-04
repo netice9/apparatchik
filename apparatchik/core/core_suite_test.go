@@ -51,7 +51,7 @@ var _ = Describe("apparatchik", func() {
 				Expect(err).To(BeNil())
 				goal := appStatus.Goals[goal]
 
-				if goal == nil || goal.Status != status {
+				if goal == nil || (goal != nil && goal.Status != status) {
 					time.Sleep(10 * time.Millisecond)
 				} else {
 					break
