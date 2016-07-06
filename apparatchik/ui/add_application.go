@@ -6,10 +6,10 @@ import (
 
 	"github.com/netice9/apparatchik/apparatchik/core"
 
-	"gitlab.netice9.com/dragan/go-bootreactor"
+	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 )
 
-func addApplicationForm(alert error, hideFileForm bool, appName string) *bootreactor.DisplayModel {
+func addApplicationForm(alert error, hideFileForm bool, appName string) *bc.DisplayModel {
 	addView := addApplicationUI.DeepCopy()
 
 	addView.SetElementAttribute("app_name", "value", appName)
@@ -31,7 +31,7 @@ func addApplicationForm(alert error, hideFileForm bool, appName string) *bootrea
 	return WithNavigation(addView, [][]string{{"Applications", "#/"}, {"Add Application", "#/add_application"}})
 }
 
-var addApplicationUI = bootreactor.MustParseDisplayModel(`
+var addApplicationUI = bc.MustParseDisplayModel(`
 	<form>
 		<bs.Alert id="alert" bsStyle="danger"/>
 		<bs.FormGroup controlId="descriptorFile" id="file_form">
@@ -55,7 +55,7 @@ func AddApplicationScreen(ctx *Context) (Screen, error) {
 
 	var alert error
 
-	ctx.display <- &bootreactor.DisplayUpdate{
+	ctx.display <- &bc.DisplayUpdate{
 		Model: addApplicationForm(alert, config != nil, appName),
 	}
 
@@ -63,7 +63,7 @@ func AddApplicationScreen(ctx *Context) (Screen, error) {
 
 		if evt.ElementID == "app_name" {
 			appName = evt.Value
-			ctx.display <- &bootreactor.DisplayUpdate{
+			ctx.display <- &bc.DisplayUpdate{
 				Model: addApplicationForm(alert, config != nil, appName),
 			}
 		}
@@ -81,7 +81,7 @@ func AddApplicationScreen(ctx *Context) (Screen, error) {
 			parts := strings.Split(evt.Value, ".")
 
 			appName = parts[0]
-			ctx.display <- &bootreactor.DisplayUpdate{
+			ctx.display <- &bc.DisplayUpdate{
 				Model: addApplicationForm(alert, config != nil, appName),
 			}
 
@@ -94,12 +94,12 @@ func AddApplicationScreen(ctx *Context) (Screen, error) {
 				alert = err
 			} else {
 				location := "#/"
-				ctx.display <- &bootreactor.DisplayUpdate{
+				ctx.display <- &bc.DisplayUpdate{
 					Location: &location,
 				}
 			}
 
-			ctx.display <- &bootreactor.DisplayUpdate{
+			ctx.display <- &bc.DisplayUpdate{
 				Model: addApplicationForm(alert, config != nil, appName),
 			}
 

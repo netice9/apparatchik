@@ -5,17 +5,17 @@ import (
 	"fmt"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
-	"gitlab.netice9.com/dragan/go-bootreactor"
+	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 )
 
-var goalRowUI = bootreactor.MustParseDisplayModel(`
+var goalRowUI = bc.MustParseDisplayModel(`
   <tr id="row">
     <td ><a id="goal_name" href="#" className="btn btn-default"/></td>
     <td id="goal_state" />
     <td id="goal_actions" />
   </tr>
 `)
-var applicationUI = bootreactor.MustParseDisplayModel(`
+var applicationUI = bc.MustParseDisplayModel(`
   <div>
     <bs.Panel id="app_panel" header="">
       <bs.Alert id="alert" bsStyle="danger"/>
@@ -63,7 +63,7 @@ var applicationUI = bootreactor.MustParseDisplayModel(`
 
 func Application(app *core.Application) func(*Context) (Screen, error) {
 
-	applicationView := func(status core.ApplicationStatus, showModal bool, alert error) *bootreactor.DisplayModel {
+	applicationView := func(status core.ApplicationStatus, showModal bool, alert error) *bc.DisplayModel {
 		view := applicationUI.DeepCopy()
 		view.SetElementAttribute("app_panel", "header", status.Name)
 		view.SetElementText("main_goal", app.MainGoal)
@@ -98,7 +98,7 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 
 		title := fmt.Sprintf("Apparatchik: Application %s", app.Name)
 
-		ctx.display <- &bootreactor.DisplayUpdate{
+		ctx.display <- &bc.DisplayUpdate{
 			Title: &title,
 		}
 
@@ -109,11 +109,11 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 			case update, appActive := <-appUpdates:
 				if !appActive {
 					location := "#/"
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Location: &location,
 					}
 				} else {
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Model: applicationView(update, showModal, alert),
 					}
 				}
@@ -123,26 +123,26 @@ func Application(app *core.Application) func(*Context) (Screen, error) {
 				}
 				if evt.ElementID == "delete_app_button" {
 					showModal = true
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Model: applicationView(applicationStatus, showModal, alert),
 					}
 				}
 				if evt.ElementID == "delete_confirm_modal" && evt.Type == "hide" {
 					showModal = false
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Model: applicationView(applicationStatus, showModal, alert),
 					}
 				}
 				if evt.ElementID == "cancel_delete_button" {
 					showModal = false
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Model: applicationView(applicationStatus, showModal, alert),
 					}
 				}
 				if evt.ElementID == "delete_confirm_button" {
 					showModal = false
 					alert = errors.New("Deleting application.")
-					ctx.display <- &bootreactor.DisplayUpdate{
+					ctx.display <- &bc.DisplayUpdate{
 						Model: applicationView(applicationStatus, showModal, alert),
 					}
 					_ = ctx.apparatchik.TerminateApplication(app.Name)

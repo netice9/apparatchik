@@ -258,9 +258,9 @@
 			"revisionTime": "2015-12-07T16:24:04-08:00"
 		},
 		{
-			"path": "gitlab.netice9.com/dragan/go-bootreactor",
-			"revision": "f7143dbede730e26f6dd19aacad5db7c28365cb2",
-			"revisionTime": "2016-06-27T02:57:15+01:00"
+			"path": "gitlab.netice9.com/dragan/go-bootreactor/core",
+			"revision": "c6b470d9d2422cdfab045ea93903897f6818d4a8",
+			"revisionTime": "2016-07-06T14:39:03+01:00"
 		},
 		{
 			"path": "golang.org/x/net/context",

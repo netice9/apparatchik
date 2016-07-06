@@ -8,12 +8,12 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/apparatchik/apparatchik/core"
 	"github.com/netice9/apparatchik/apparatchik/util"
-	"gitlab.netice9.com/dragan/go-bootreactor"
+	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 )
 
 // 10 000 000
 
-var goalUI = bootreactor.MustParseDisplayModel(`
+var goalUI = bc.MustParseDisplayModel(`
 	<div>
 	  <bs.Panel id="goal_panel" header="CPU Stats">
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" class="chart">
@@ -55,7 +55,7 @@ const outputHeight = 25
 
 // Goal renders goal screen
 func Goal(goal *core.Goal) func(*Context) (Screen, error) {
-	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bootreactor.DisplayModel {
+	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bc.DisplayModel {
 		view := goalUI.DeepCopy()
 
 		cpuPoints, cpuMax := util.TimeSeriesToLine(stat.Stats.CpuStats, 400, 100, 1000000)
@@ -87,7 +87,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 
 		title := fmt.Sprintf("Apparatchik: Application %s Goal %s", goal.ApplicationName, goal.Name)
 
-		ctx.display <- &bootreactor.DisplayUpdate{
+		ctx.display <- &bc.DisplayUpdate{
 			Title: &title,
 		}
 
@@ -125,7 +125,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 		for {
 			select {
 			case output = <-outputTrackerUpdates:
-				ctx.display <- &bootreactor.DisplayUpdate{
+				ctx.display <- &bc.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
 				}
 			case goalUpdate, updateReceived := <-goalUpdates:
@@ -133,7 +133,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 					return MainScreen, nil
 				}
 				stat = goalUpdate
-				ctx.display <- &bootreactor.DisplayUpdate{
+				ctx.display <- &bc.DisplayUpdate{
 					Model: goalView(stat, output, fromLine),
 				}
 			case evt, eventRead := <-ctx.userEvents:
@@ -156,7 +156,7 @@ func Goal(goal *core.Goal) func(*Context) (Screen, error) {
 								fromLine--
 							}
 						}
-						ctx.display <- &bootreactor.DisplayUpdate{
+						ctx.display <- &bc.DisplayUpdate{
 							Model: goalView(stat, output, fromLine),
 						}
 					}

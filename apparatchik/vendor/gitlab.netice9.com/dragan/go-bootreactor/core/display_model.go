@@ -1,4 +1,4 @@
-package bootreactor
+package core
 
 import "reflect"
 

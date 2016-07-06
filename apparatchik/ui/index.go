@@ -6,18 +6,18 @@ import (
 	"strings"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
-	"gitlab.netice9.com/dragan/go-bootreactor"
+	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 )
 
 type Context struct {
-	display     chan *bootreactor.DisplayUpdate
-	userEvents  chan *bootreactor.UserEvent
+	display     chan *bc.DisplayUpdate
+	userEvents  chan *bc.UserEvent
 	apparatchik *core.Apparatchik
 }
 
 type Screen func(*Context) (Screen, error)
 
-func (c *Context) ScreenForEvent(evt *bootreactor.UserEvent) Screen {
+func (c *Context) ScreenForEvent(evt *bc.UserEvent) Screen {
 	if evt.ElementID == "main_window" && evt.Type == "popstate" {
 		if evt.Value == "#/add_application" {
 			return AddApplicationScreen
@@ -50,7 +50,7 @@ func (c *Context) ScreenForEvent(evt *bootreactor.UserEvent) Screen {
 	return nil
 }
 
-func NewContext(display chan *bootreactor.DisplayUpdate, userEvents chan *bootreactor.UserEvent, apparatchik *core.Apparatchik) *Context {
+func NewContext(display chan *bc.DisplayUpdate, userEvents chan *bc.UserEvent, apparatchik *core.Apparatchik) *Context {
 	return &Context{
 		display:     display,
 		userEvents:  userEvents,
@@ -58,11 +58,11 @@ func NewContext(display chan *bootreactor.DisplayUpdate, userEvents chan *bootre
 	}
 }
 
-var breadcrumbItemUI = bootreactor.MustParseDisplayModel(`
+var breadcrumbItemUI = bc.MustParseDisplayModel(`
 	<bs.Breadcrumb.Item id="breadcrumb_item" href="#" />
 `)
 
-var navigationUI = bootreactor.MustParseDisplayModel(`
+var navigationUI = bc.MustParseDisplayModel(`
   <div>
   	<bs.Navbar bool:fluid="true">
   		<bs.Navbar.Header>
@@ -88,7 +88,7 @@ var navigationUI = bootreactor.MustParseDisplayModel(`
   </div>
 `)
 
-func WithNavigation(content *bootreactor.DisplayModel, breadcrumbs [][]string) *bootreactor.DisplayModel {
+func WithNavigation(content *bc.DisplayModel, breadcrumbs [][]string) *bc.DisplayModel {
 	view := navigationUI.DeepCopy()
 	if len(breadcrumbs) == 0 {
 		view.DeleteChild("breadcrumb")
@@ -107,9 +107,9 @@ func WithNavigation(content *bootreactor.DisplayModel, breadcrumbs [][]string) *
 	return view
 }
 
-var appGroupItem = bootreactor.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
+var appGroupItem = bc.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
 
-var appGroupUI = bootreactor.MustParseDisplayModel(`
+var appGroupUI = bc.MustParseDisplayModel(`
 <div className="panel panel-default">
 	<div className="panel-heading">
 		<h3>Active Applications</h3>
@@ -139,7 +139,7 @@ func MainScreen(ctx *Context) (Screen, error) {
 				listGroup.AppendChild("list_group", item)
 			}
 
-			ctx.display <- &bootreactor.DisplayUpdate{
+			ctx.display <- &bc.DisplayUpdate{
 				Model: WithNavigation(listGroup, [][]string{{"Applications", "#/"}}),
 			}
 		case evt, eventOK := <-ctx.userEvents:
@@ -153,6 +153,11 @@ func MainScreen(ctx *Context) (Screen, error) {
 		}
 	}
 
+}
+
+type ScreenHandler interface {
+	Start(chan *bc.DisplayUpdate)
+	Stop()
 }
 
 func RunApparatchikUI(ctx *Context) {
