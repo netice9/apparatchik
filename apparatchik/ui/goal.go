@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -53,121 +52,113 @@ var goalUI = bc.MustParseDisplayModel(`
 
 const outputHeight = 25
 
-// Goal renders goal screen
-func Goal(goal *core.Goal) func(*Context) (Screen, error) {
-	goalView := func(stat core.GoalStatus, output []string, fromLine int) *bc.DisplayModel {
-		view := goalUI.DeepCopy()
+type GoalS struct {
+	display         chan *bc.DisplayUpdate
+	goalUpdates     chan core.GoalStatus
+	goal            *core.Goal
+	stat            core.GoalStatus
+	fromLine        int
+	output          []string
+	outputTracker   *util.OutputTracker
+	containerID     string
+	trackerListener chan []string
+}
 
-		cpuPoints, cpuMax := util.TimeSeriesToLine(stat.Stats.CpuStats, 400, 100, 1000000)
-		view.SetElementAttribute("cpu_line", "points", cpuPoints)
-		cpuPercentMax := float64(cpuMax) / 10000000
+func (g *GoalS) render() {
+	view := goalUI.DeepCopy()
 
-		view.SetElementText("max_cpu", fmt.Sprintf("%.1f%%", cpuPercentMax))
+	cpuPoints, cpuMax := util.TimeSeriesToLine(g.stat.Stats.CpuStats, 400, 100, 1000000)
+	view.SetElementAttribute("cpu_line", "points", cpuPoints)
+	cpuPercentMax := float64(cpuMax) / 10000000
 
-		memoryPoints, memoryMax := util.TimeSeriesToLine(stat.Stats.MemStats, 400, 100, 1024*1024)
-		memoryMBytes := memoryMax / (1024 * 1024)
-		view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
+	view.SetElementText("max_cpu", fmt.Sprintf("%.1f%%", cpuPercentMax))
 
-		view.SetElementAttribute("memory_line", "points", memoryPoints)
-		lastLine := fromLine + outputHeight
-		if lastLine > len(output) {
-			lastLine = len(output)
-		}
+	memoryPoints, memoryMax := util.TimeSeriesToLine(g.stat.Stats.MemStats, 400, 100, 1024*1024)
+	memoryMBytes := memoryMax / (1024 * 1024)
+	view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
 
-		view.SetElementAttribute("output_panel", "header", fmt.Sprintf("Output: Lines %d - %d of %d", fromLine, lastLine, len(output)))
-
-		view.SetElementText("out", strings.Join(output[fromLine:lastLine], "\n")+" ")
-
-		return WithNavigation(view, [][]string{{"Applications", "#/"}, {goal.ApplicationName, fmt.Sprintf("#/apps/%s", goal.ApplicationName)}, {goal.Name, fmt.Sprintf("#/apps/%s/%s", goal.ApplicationName, goal.Name)}})
+	view.SetElementAttribute("memory_line", "points", memoryPoints)
+	lastLine := g.fromLine + outputHeight
+	if lastLine > len(g.output) {
+		lastLine = len(g.output)
 	}
-	return func(ctx *Context) (Screen, error) {
 
-		goalUpdates := goal.AddListener(1)
-		defer goal.RemoveListener(goalUpdates)
+	view.SetElementAttribute("output_panel", "header", fmt.Sprintf("Output: Lines %d - %d of %d", g.fromLine, lastLine, len(g.output)))
 
-		title := fmt.Sprintf("Apparatchik: Application %s Goal %s", goal.ApplicationName, goal.Name)
+	view.SetElementText("out", strings.Join(g.output[g.fromLine:lastLine], "\n")+" ")
 
-		ctx.display <- &bc.DisplayUpdate{
-			Title: &title,
-		}
+	g.display <- &bc.DisplayUpdate{
+		Model: WithNavigation(view, [][]string{{"Applications", "#/"}, {g.goal.ApplicationName, fmt.Sprintf("#/apps/%s", g.goal.ApplicationName)}, {g.goal.Name, fmt.Sprintf("#/apps/%s/%s", g.goal.ApplicationName, g.goal.Name)}}),
+	}
 
-		containerID := goal.GetContainerID()
+}
 
-		tracker := util.NewOutputTracker(2000)
+func (g *GoalS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
+	g.display = display
+	g.goalUpdates = g.goal.AddListener(1)
 
-		if containerID != nil {
-			go func() {
-				err := goal.DockerClient.Logs(docker.LogsOptions{
-					Container:    *containerID,
-					OutputStream: tracker,
-					ErrorStream:  tracker,
-					Stdout:       true,
-					Stderr:       true,
-					Follow:       true,
-					Tail:         "all",
-					Timestamps:   true,
-				})
+	g.outputTracker = util.NewOutputTracker(2000)
 
-				if err != nil {
-					print(err)
-				}
+	g.trackerListener = g.outputTracker.AddListener(1)
 
-			}()
-		}
+	g.render()
+	return map[string]interface{}{
+		"goalUpdate": g.goalUpdates,
+		"output":     g.trackerListener,
+	}
+}
 
-		fromLine := 0
+func (g *GoalS) Unmount() {
+	g.goal.RemoveListener(g.goalUpdates)
+	g.outputTracker.RemoveListener(g.trackerListener)
+	g.outputTracker.Close()
+	fmt.Println("unmounted")
+}
 
-		outputTrackerUpdates := tracker.AddListener(0)
+func (g *GoalS) ReceivedOutput(output []string) {
+	g.output = output
+	g.render()
+}
 
-		output := []string{}
-		stat := core.GoalStatus{}
-
-		for {
-			select {
-			case output = <-outputTrackerUpdates:
-				ctx.display <- &bc.DisplayUpdate{
-					Model: goalView(stat, output, fromLine),
-				}
-			case goalUpdate, updateReceived := <-goalUpdates:
-				if !updateReceived {
-					return MainScreen, nil
-				}
-				stat = goalUpdate
-				ctx.display <- &bc.DisplayUpdate{
-					Model: goalView(stat, output, fromLine),
-				}
-			case evt, eventRead := <-ctx.userEvents:
-
-				if eventRead {
-
-					screeen := ctx.ScreenForEvent(evt)
-					if screeen != nil {
-						return screeen, nil
-					}
-
-					if evt.Type == "wheel" {
-						deltaY := evt.ExtraValues["deltaY"].(float64)
-						if deltaY > 0 {
-							if (fromLine + outputHeight) < len(output) {
-								fromLine++
-							}
-						} else {
-							if fromLine > 0 {
-								fromLine--
-							}
-						}
-						ctx.display <- &bc.DisplayUpdate{
-							Model: goalView(stat, output, fromLine),
-						}
-					}
-				} else {
-					return nil, errors.New("client disconnected")
-				}
+func (g *GoalS) EvtOut(evt *bc.UserEvent) {
+	if evt.Type == "wheel" {
+		deltaY := evt.ExtraValues["deltaY"].(float64)
+		if deltaY > 0 {
+			if (g.fromLine + outputHeight) < len(g.output) {
+				g.fromLine++
+			}
+		} else {
+			if g.fromLine > 0 {
+				g.fromLine--
 			}
 		}
+		g.render()
+	}
+}
 
-		// return nil, nil
+func (g *GoalS) ReceivedGoalUpdate(status core.GoalStatus) {
+	g.stat = status
 
+	if g.containerID == "" && g.goal.ContainerId != nil {
+		g.containerID = *g.goal.ContainerId
+		go func() {
+			err := g.goal.DockerClient.Logs(docker.LogsOptions{
+				Container:    g.containerID,
+				OutputStream: g.outputTracker,
+				ErrorStream:  g.outputTracker,
+				Stdout:       true,
+				Stderr:       true,
+				Follow:       true,
+				Tail:         "all",
+				Timestamps:   true,
+			})
+
+			if err != nil {
+				print(err)
+			}
+
+		}()
 	}
 
+	g.render()
 }

@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
+	"github.com/netice9/apparatchik/apparatchik/util/router"
 	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 )
 
@@ -13,41 +13,6 @@ type Context struct {
 	display     chan *bc.DisplayUpdate
 	userEvents  chan *bc.UserEvent
 	apparatchik *core.Apparatchik
-}
-
-type Screen func(*Context) (Screen, error)
-
-func (c *Context) ScreenForEvent(evt *bc.UserEvent) Screen {
-	if evt.ElementID == "main_window" && evt.Type == "popstate" {
-		if evt.Value == "#/add_application" {
-			return AddApplicationScreen
-		}
-		if evt.Value == "#/" || evt.Value == "#" || evt.Value == "" {
-			return MainScreen
-		}
-		if strings.HasPrefix(evt.Value, "#/apps/") {
-
-			parts := strings.Split(strings.TrimPrefix(evt.Value, "#/apps/"), "/")
-
-			appName := parts[0]
-
-			app, err := c.apparatchik.GetApplicationByName(appName)
-			if err != nil {
-				return nil
-			}
-
-			if len(parts) == 2 {
-				goal, found := app.Goals[parts[1]]
-				if !found {
-					return nil
-				}
-				return Goal(goal)
-			} else {
-				return Application(app)
-			}
-		}
-	}
-	return nil
 }
 
 func NewContext(display chan *bc.DisplayUpdate, userEvents chan *bc.UserEvent, apparatchik *core.Apparatchik) *Context {
@@ -123,51 +88,82 @@ var appGroupUI = bc.MustParseDisplayModel(`
 </div>
 `)
 
-func MainScreen(ctx *Context) (Screen, error) {
+type MainS struct {
+	apparatchik *core.Apparatchik
+	display     chan *bc.DisplayUpdate
+	apps        []string
+	listener    chan []string
+}
 
-	ch := ctx.apparatchik.AddListener(0)
-	defer ctx.apparatchik.RemoveListener(ch)
+func (m *MainS) render() {
+	listGroup := appGroupUI.DeepCopy()
+	for _, app := range m.apps {
+		item := appGroupItem.DeepCopy()
+		item.SetElementText("list_element", app)
+		item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/apps/%s", app))
+		listGroup.AppendChild("list_group", item)
+	}
 
-	for {
-		select {
-		case apps := <-ch:
-			listGroup := appGroupUI.DeepCopy()
-			for _, app := range apps {
-				item := appGroupItem.DeepCopy()
-				item.SetElementText("list_element", app)
-				item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/apps/%s", app))
-				listGroup.AppendChild("list_group", item)
-			}
-
-			ctx.display <- &bc.DisplayUpdate{
-				Model: WithNavigation(listGroup, [][]string{{"Applications", "#/"}}),
-			}
-		case evt, eventOK := <-ctx.userEvents:
-			if !eventOK {
-				return nil, errors.New("closed")
-			}
-			next := ctx.ScreenForEvent(evt)
-			if next != nil {
-				return next, nil
-			}
-		}
+	m.display <- &bc.DisplayUpdate{
+		Model: WithNavigation(listGroup, [][]string{{"Applications", "#/"}}),
 	}
 
 }
 
-type ScreenHandler interface {
-	Start(chan *bc.DisplayUpdate)
-	Stop()
+func (m *MainS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
+	m.listener = m.apparatchik.AddListener(0)
+	m.display = display
+	m.render()
+	return map[string]interface{}{
+		"apparatchik": m.listener,
+	}
 }
 
-func RunApparatchikUI(ctx *Context) {
-	var err error
-	var screen Screen = MainScreen
-	for {
-		screen, err = screen(ctx)
-		if err != nil {
-			close(ctx.display)
-			return
+func (m *MainS) ReceivedApparatchik(apps []string) {
+	fmt.Println(apps)
+	m.apps = apps
+	m.render()
+}
+
+func (m *MainS) Unmount() {
+	m.apparatchik.RemoveListener(m.listener)
+}
+
+func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen {
+	return func(path string) router.Screen {
+
+		fmt.Printf("path: %s\n", path)
+
+		if path == "#/add_application" {
+			return &AddApp{
+				apparatchik: apparatchik,
+			}
 		}
+
+		if strings.HasPrefix(path, "#/apps/") {
+
+			parts := strings.Split(strings.TrimPrefix(path, "#/apps/"), "/")
+
+			appName := parts[0]
+
+			app, err := apparatchik.GetApplicationByName(appName)
+			if err != nil {
+				return &MainS{apparatchik: apparatchik}
+			}
+
+			if len(parts) == 2 {
+				goal, found := app.Goals[parts[1]]
+				if !found {
+					return &AppS{app: app, apparatchik: apparatchik}
+				}
+				return &GoalS{
+					goal: goal,
+				}
+			}
+			return &AppS{app: app, apparatchik: apparatchik}
+
+		}
+
+		return &MainS{apparatchik: apparatchik}
 	}
 }

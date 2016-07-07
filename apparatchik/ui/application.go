@@ -39,120 +39,104 @@ var applicationUI = bc.MustParseDisplayModel(`
         </dd>
       </dl>
 
-      <bs.Button id="delete_app_button" bsStyle="danger" reportEvents="click">Delete!
-        <bs.Modal id="delete_confirm_modal" bool:show="false" reportEvents="hide">
-            <bs.Modal.Header>
-              <bs.Modal.Title>Confirm Deleting Application</bs.Modal.Title>
-            </bs.Modal.Header>
+      <bs.Button id="deleteButton" bsStyle="danger" reportEvents="click">Delete!</bs.Button>
+			<bs.Modal id="delete_confirm_modal" bool:show="false" reportEvents="hide">
+					<bs.Modal.Header>
+						<bs.Modal.Title>Confirm Deleting Application</bs.Modal.Title>
+					</bs.Modal.Header>
 
-            <bs.Modal.Body>
-              You are about to delete application "<strong id="application_name"/>". Are you sure?
-            </bs.Modal.Body>
+					<bs.Modal.Body>
+						You are about to delete application "<strong id="application_name"/>". Are you sure?
+					</bs.Modal.Body>
 
-            <bs.Modal.Footer>
-              <bs.Button id="delete_confirm_button" bsStyle="danger" reportEvents="click">Delete</bs.Button>
-              <bs.Button id="cancel_delete_button" bsStyle="primary" reportEvents="click">Cancel</bs.Button>
-            </bs.Modal.Footer>
-
-        </bs.Modal>
-      </bs.Button>
+					<bs.Modal.Footer>
+						<bs.Button id="deleteConfirmButton" bsStyle="danger" reportEvents="click">Delete</bs.Button>
+						<bs.Button id="deleteCancelButton" bsStyle="primary" reportEvents="click">Cancel</bs.Button>
+					</bs.Modal.Footer>
+			</bs.Modal>
 
     </bs.Panel>
   </div>
 `)
 
-func Application(app *core.Application) func(*Context) (Screen, error) {
+type AppS struct {
+	display     chan *bc.DisplayUpdate
+	updates     chan core.ApplicationStatus
+	apparatchik *core.Apparatchik
+	app         *core.Application
+	alert       error
+	status      core.ApplicationStatus
+	showModal   bool
+}
 
-	applicationView := func(status core.ApplicationStatus, showModal bool, alert error) *bc.DisplayModel {
-		view := applicationUI.DeepCopy()
-		view.SetElementAttribute("app_panel", "header", status.Name)
-		view.SetElementText("main_goal", app.MainGoal)
+func (a *AppS) render() {
+	view := applicationUI.DeepCopy()
+	view.SetElementAttribute("app_panel", "header", a.status.Name)
+	view.SetElementText("main_goal", a.app.MainGoal)
 
-		for name, goal := range status.Goals {
-			row := goalRowUI.DeepCopy()
-			row.SetElementText("goal_name", name)
-			row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", app.Name, goal.Name))
-			row.SetElementText("goal_state", goal.Status)
-			view.AppendChild("goal_table_body", row)
-		}
-
-		if alert != nil {
-			view.SetElementText("alert", alert.Error())
-		} else {
-			view.DeleteChild("alert")
-		}
-
-		view.SetElementAttribute("delete_confirm_modal", "show", showModal)
-		view.SetElementText("application_name", app.Name)
-
-		return WithNavigation(view, [][]string{{"Applications", "#/"}, {app.Name, fmt.Sprintf("#/apps/%s", app.Name)}})
+	for name, goal := range a.status.Goals {
+		row := goalRowUI.DeepCopy()
+		row.SetElementText("goal_name", name)
+		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))
+		row.SetElementText("goal_state", goal.Status)
+		view.AppendChild("goal_table_body", row)
 	}
 
-	return func(ctx *Context) (Screen, error) {
-
-		appUpdates := app.AddListener(0)
-
-		showModal := false
-
-		var applicationStatus core.ApplicationStatus
-
-		title := fmt.Sprintf("Apparatchik: Application %s", app.Name)
-
-		ctx.display <- &bc.DisplayUpdate{
-			Title: &title,
-		}
-
-		var alert error
-
-		for {
-			select {
-			case update, appActive := <-appUpdates:
-				if !appActive {
-					location := "#/"
-					ctx.display <- &bc.DisplayUpdate{
-						Location: &location,
-					}
-				} else {
-					ctx.display <- &bc.DisplayUpdate{
-						Model: applicationView(update, showModal, alert),
-					}
-				}
-			case evt, evtRead := <-ctx.userEvents:
-				if !evtRead {
-					return nil, errors.New("client disconnected")
-				}
-				if evt.ElementID == "delete_app_button" {
-					showModal = true
-					ctx.display <- &bc.DisplayUpdate{
-						Model: applicationView(applicationStatus, showModal, alert),
-					}
-				}
-				if evt.ElementID == "delete_confirm_modal" && evt.Type == "hide" {
-					showModal = false
-					ctx.display <- &bc.DisplayUpdate{
-						Model: applicationView(applicationStatus, showModal, alert),
-					}
-				}
-				if evt.ElementID == "cancel_delete_button" {
-					showModal = false
-					ctx.display <- &bc.DisplayUpdate{
-						Model: applicationView(applicationStatus, showModal, alert),
-					}
-				}
-				if evt.ElementID == "delete_confirm_button" {
-					showModal = false
-					alert = errors.New("Deleting application.")
-					ctx.display <- &bc.DisplayUpdate{
-						Model: applicationView(applicationStatus, showModal, alert),
-					}
-					_ = ctx.apparatchik.TerminateApplication(app.Name)
-				}
-
-				screen := ctx.ScreenForEvent(evt)
-				if screen != nil {
-					return screen, nil
-				}
-			}
-		}
+	if a.alert != nil {
+		view.SetElementText("alert", a.alert.Error())
+	} else {
+		view.DeleteChild("alert")
 	}
+
+	view.SetElementAttribute("delete_confirm_modal", "show", a.showModal)
+	view.SetElementText("application_name", a.app.Name)
+
+	a.display <- &bc.DisplayUpdate{
+		Model: WithNavigation(view, [][]string{{"Applications", "#/"}, {a.app.Name, fmt.Sprintf("#/apps/%s", a.app.Name)}}),
+	}
+}
+
+func (a *AppS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
+	a.display = display
+	a.updates = a.app.AddListener(0)
+	a.render()
+	return map[string]interface{}{"applicationStatus": a.updates}
+}
+
+func (a *AppS) ReceivedApplicationStatus(status core.ApplicationStatus) {
+	a.status = status
+	a.render()
+}
+
+func (a *AppS) ClosedApplicationStatus() bool {
+	location := "#/"
+	a.display <- &bc.DisplayUpdate{
+		Location: &location,
+	}
+	return false
+}
+
+func (a *AppS) EvtDeleteButton(evt *bc.UserEvent) {
+	a.showModal = true
+	a.render()
+}
+
+func (a *AppS) EvtDeleteCancelButton(evt *bc.UserEvent) {
+	a.showModal = false
+	a.render()
+}
+
+func (a *AppS) EvtDeleteConfirmButton(evt *bc.UserEvent) {
+	a.showModal = false
+	a.alert = errors.New("Deleting application.")
+
+	err := a.apparatchik.TerminateApplication(a.app.Name)
+	if err != nil {
+		a.alert = err
+	}
+	a.render()
+}
+
+func (a *AppS) Unmount() {
+	a.app.RemoveListener(a.updates)
 }

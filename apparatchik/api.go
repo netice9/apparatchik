@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/netice9/apparatchik/apparatchik/core"
 	"github.com/netice9/apparatchik/apparatchik/ui"
+	br "github.com/netice9/apparatchik/apparatchik/util/router"
+	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
@@ -36,13 +36,7 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	}
 	router := httprouter.New()
 
-	displayCreator := func(display chan *bc.DisplayUpdate, userEvents chan *bc.UserEvent, r *http.Request) http.Header {
-		ctx := ui.NewContext(display, userEvents, apparatchick)
-		go ui.RunApparatchikUI(ctx)
-		return http.Header{}
-	}
-
-	router.HandlerFunc("GET", "/ws", bc.NewReactorHandler(displayCreator))
+	router.HandlerFunc("GET", "/ws", bc.NewReactorHandler(br.NewRouterConnectionHandler(ui.PathResolver(apparatchick))))
 
 	router.PUT("/api/v1.0/applications/:applicationName", api.CreateApplication)
 	router.DELETE("/api/v1.0/applications/:applicationName", api.DeleteApplication)

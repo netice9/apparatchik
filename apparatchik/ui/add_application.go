@@ -48,68 +48,82 @@ var addApplicationUI = bc.MustParseDisplayModel(`
 	</form>
 `)
 
-func AddApplicationScreen(ctx *Context) (Screen, error) {
+type AddApp struct {
+	display     chan *bc.DisplayUpdate
+	apparatchik *core.Apparatchik
+	config      *core.ApplicationConfiguration
+	appName     string
+	alert       error
+	location    *string
+}
 
-	var config *core.ApplicationConfiguration
-	appName := ""
+func (a *AddApp) render() {
+	addView := addApplicationUI.DeepCopy()
 
-	var alert error
+	addView.SetElementAttribute("app_name", "value", a.appName)
 
-	ctx.display <- &bc.DisplayUpdate{
-		Model: addApplicationForm(alert, config != nil, appName),
+	if a.alert == nil {
+		addView.DeleteChild("alert")
+	} else {
+		addView.SetElementText("alert", a.alert.Error())
 	}
 
-	for evt := range ctx.userEvents {
-
-		if evt.ElementID == "app_name" {
-			appName = evt.Value
-			ctx.display <- &bc.DisplayUpdate{
-				Model: addApplicationForm(alert, config != nil, appName),
-			}
-		}
-
-		if evt.ElementID == "descriptor" && evt.Data != "" && evt.Value != "" {
-			config = &core.ApplicationConfiguration{}
-			err := json.Unmarshal([]byte(evt.Data), &config)
-			if err != nil {
-				alert = err
-				config = nil
-			} else {
-				alert = nil
-			}
-
-			parts := strings.Split(evt.Value, ".")
-
-			appName = parts[0]
-			ctx.display <- &bc.DisplayUpdate{
-				Model: addApplicationForm(alert, config != nil, appName),
-			}
-
-		}
-
-		if evt.ElementID == "deploy_btn" {
-			_, err := ctx.apparatchik.NewApplication(appName, config)
-
-			if err != nil {
-				alert = err
-			} else {
-				location := "#/"
-				ctx.display <- &bc.DisplayUpdate{
-					Location: &location,
-				}
-			}
-
-			ctx.display <- &bc.DisplayUpdate{
-				Model: addApplicationForm(alert, config != nil, appName),
-			}
-
-		}
-
-		next := ctx.ScreenForEvent(evt)
-		if next != nil {
-			return next, nil
-		}
+	if a.config != nil {
+		addView.SetElementAttribute("descriptor", "disabled", true)
+		addView.SetElementAttribute("deploy_btn", "disabled", false)
+	} else {
+		addView.DeleteChild("name_form")
+		addView.DeleteChild("deploy_btn")
 	}
 
-	return MainScreen, nil
+	view := WithNavigation(addView, [][]string{{"Applications", "#/"}, {"Add Application", "#/add_application"}})
+
+	a.display <- &bc.DisplayUpdate{
+		Model:    view,
+		Location: a.location,
+	}
+}
+
+func (a *AddApp) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
+	a.display = display
+	a.render()
+	return nil
+}
+
+func (a *AddApp) Unmount() {
+
+}
+
+func (a *AddApp) EvtDescriptor(evt *bc.UserEvent) {
+	config := &core.ApplicationConfiguration{}
+	err := json.Unmarshal([]byte(evt.Data), &config)
+	if err != nil {
+		a.alert = err
+		a.config = nil
+	} else {
+		a.alert = nil
+		a.config = config
+	}
+
+	parts := strings.Split(evt.Value, ".")
+
+	a.appName = parts[0]
+	a.render()
+}
+
+func (a *AddApp) EvtApp_name(evt *bc.UserEvent) {
+	a.appName = evt.Value
+	a.render()
+}
+
+func (a *AddApp) EvtDeploy_btn(evt *bc.UserEvent) {
+	_, err := a.apparatchik.NewApplication(a.appName, a.config)
+
+	if err != nil {
+		a.alert = err
+	} else {
+		newLoc := "#/"
+		a.location = &newLoc
+	}
+	a.render()
 }
