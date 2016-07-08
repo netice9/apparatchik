@@ -159,6 +159,16 @@ func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen
 				return &GoalS{
 					goal: goal,
 				}
+			} else if len(parts) == 3 {
+				goal, found := app.Goals[parts[1]]
+				if !found {
+					return &AppS{app: app, apparatchik: apparatchik}
+				}
+				if parts[2] == "xterm" {
+					return &XTerm{
+						goal: goal,
+					}
+				}
 			}
 			return &AppS{app: app, apparatchik: apparatchik}
 

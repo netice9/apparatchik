@@ -12,7 +12,9 @@ var goalRowUI = bc.MustParseDisplayModel(`
   <tr id="row">
     <td ><a id="goal_name" href="#" className="btn btn-default"/></td>
     <td id="goal_state" />
-    <td id="goal_actions" />
+    <td id="goal_actions">
+			<a id="goal_term_link" href="#" className="btn btn-default">XTerm</a>
+		</td>
   </tr>
 `)
 var applicationUI = bc.MustParseDisplayModel(`
@@ -78,6 +80,7 @@ func (a *AppS) render() {
 		row := goalRowUI.DeepCopy()
 		row.SetElementText("goal_name", name)
 		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))
+		row.SetElementAttribute("goal_term_link", "href", fmt.Sprintf("#/apps/%s/%s/xterm", a.app.Name, goal.Name))
 		row.SetElementText("goal_state", goal.Status)
 		view.AppendChild("goal_table_body", row)
 	}
