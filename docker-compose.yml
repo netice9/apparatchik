@@ -21,10 +21,4 @@ testwip:
   volumes:
     - ./integration-tests:/tests
     - "/var/run/docker.sock:/var/run/docker.sock"
-testui:
-  build: ui-test
-  command: cucumber
-  links:
-    - apparatchik
-  volumes:
-    - ./ui-test:/tests
+
