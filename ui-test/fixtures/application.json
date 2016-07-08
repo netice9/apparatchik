@@ -1,9 +1,0 @@
-{
-  "goals": {
-    "goal1": {
-      "image": "alpine:3.2",
-      "command": ["/bin/sh","-c","sleep 1; echo executed"]
-    }
-  },
-  "main_goal": "goal1"
-}
