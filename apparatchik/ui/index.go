@@ -120,7 +120,6 @@ func (m *MainS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
 }
 
 func (m *MainS) ReceivedApparatchik(apps []string) {
-	fmt.Println(apps)
 	m.apps = apps
 	m.render()
 }
@@ -131,8 +130,6 @@ func (m *MainS) Unmount() {
 
 func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen {
 	return func(path string) router.Screen {
-
-		fmt.Printf("path: %s\n", path)
 
 		if path == "#/add_application" {
 			return &AddApp{

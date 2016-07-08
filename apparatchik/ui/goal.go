@@ -112,7 +112,6 @@ func (g *GoalS) Unmount() {
 	g.goal.RemoveListener(g.goalUpdates)
 	g.outputTracker.RemoveListener(g.trackerListener)
 	g.outputTracker.Close()
-	fmt.Println("unmounted")
 }
 
 func (g *GoalS) ReceivedOutput(output []string) {
