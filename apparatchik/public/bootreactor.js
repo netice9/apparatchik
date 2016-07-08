@@ -51855,18 +51855,18 @@ var ws = null;
 var connectSocket = function connectSocket() {
   ws = new WebSocket(url);
 
-  var oldPopState = window.onpopstate;
+  var oldHashChange = window.onhashchange;
 
   ws.onopen = function () {
     modelChangeEmitter.emit('modelChange', connectedModel);
-    window.onpopstate = function (event) {
+    window.onhashchange = function (event) {
       ws.send(JSON.stringify({ id: "main_window", type: "popstate", value: window.location.hash }));
     };
     ws.send(JSON.stringify({ id: "main_window", type: "popstate", value: window.location.hash }));
   };
 
   ws.onclose = function () {
-    window.onpopstate = oldPopState;
+    window.onhashchange = oldHashChange;
     ws = null;
     setTimeout(connectSocket, 1000);
     modelChangeEmitter.emit('modelChange', disconnectedModel);
