@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
+	"strings"
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/netice9/apparatchik/apparatchik/core"
