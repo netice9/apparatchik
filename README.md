@@ -27,13 +27,13 @@ Apparatchick is meant to run as a Docker container. It will listen on the port 8
 The recomended way of startin Aparatchick is:
 
 ```bash
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 --name=apparatchik -d netice9/apparatchik:0.1.1
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 --name=apparatchik -d netice9/apparatchik:0.5.0
 ```
 
 If you would like to add Basic Auth to the HTTP, set AUTH_USERNAME and AUTH_PASSWORD environment variables when starting Aparatchick:
 
 ```bash
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 -e AUTH_USERNAME=admin -e AUTH_PASSWORD=somepassword --name=apparatchik -d netice9/apparatchik:0.1.1
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /apparatchik:/applications  -p 8080:8080 -e AUTH_USERNAME=admin -e AUTH_PASSWORD=somepassword --name=apparatchik -d netice9/apparatchik:0.5.0
 ```
 
 ## Web interface
