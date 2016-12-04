@@ -33,7 +33,7 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 		Emitter:             emission.NewEmitter(),
 	}
 
-	apparatchick.Emitter.SetMaxListeners(500)
+	apparatchick.Emitter.SetMaxListeners(MaxListeners)
 
 	// call HandleDockerEvent for every new docker event
 	// in a separate go-routine

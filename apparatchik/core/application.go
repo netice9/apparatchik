@@ -1,10 +1,5 @@
 package core
 
-//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=ApplicationStatus -out-dir=.
-//go:generate mv notifier.go application_notifier.go
-//go:generate sed -i "s/^package notifier/package core/" application_notifier.go
-//go:generate sed -i "s/Notifier/ApplicationNotifier/g" application_notifier.go
-
 import (
 	"encoding/json"
 	"errors"
@@ -15,8 +10,11 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/draganm/emission"
 	"github.com/fsouza/go-dockerclient"
 )
+
+const MaxListeners = 500
 
 var (
 	ErrApplicationAlreadyExists = errors.New("Application already exists")
@@ -32,7 +30,7 @@ type Application struct {
 	MainGoal            string
 	ApplicationFileName string
 	DockerClient        *docker.Client
-	*ApplicationNotifier
+	*emission.Emitter
 }
 
 type ApplicationStatus struct {
@@ -54,7 +52,7 @@ func (a *Application) GoalStatusUpdate(goalName, status string) {
 			goal.SiblingStatusUpdate(goalName, status)
 		}
 	}
-	a.Notify(a.Status())
+	a.Emitter.Emit("update", a.Status())
 }
 
 func (a *Application) Status() ApplicationStatus {
@@ -169,6 +167,9 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 
 	ioutil.WriteFile(fileName, json, 0644)
 
+	emitter := emission.NewEmitter()
+	emitter.SetMaxListeners(MaxListeners)
+
 	app := &Application{
 		Name:                applicationName,
 		Configuration:       applicationConfiguration,
@@ -176,12 +177,12 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 		MainGoal:            applicationConfiguration.MainGoal,
 		ApplicationFileName: fileName,
 		DockerClient:        dockerClient,
-		ApplicationNotifier: NewApplicationNotifier(NewApplicationStatus()),
+		Emitter:             emitter,
 	}
 
 	app.startGoals()
 
-	app.Notify(app.Status())
+	app.Emit("update", app.Status())
 
 	return app
 
@@ -192,7 +193,8 @@ func (a *Application) TerminateApplication() {
 	for _, goal := range a.Goals {
 		goal.TerminateGoal()
 	}
-	a.ApplicationNotifier.Close()
+
+	a.Emit("terminated")
 }
 
 func (a *Application) RequestGoalStart(name string) {
