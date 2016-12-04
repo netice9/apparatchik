@@ -6,10 +6,92 @@ import (
 
 	"github.com/netice9/apparatchik/apparatchik/core"
 
-	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
+	"gitlab.netice9.com/dragan/go-reactor"
+	brc "gitlab.netice9.com/dragan/go-reactor/core"
 )
 
-func addApplicationForm(alert error, hideFileForm bool, appName string) *bc.DisplayModel {
+type AddApplication struct {
+	ctx      reactor.ScreenContext
+	config   *core.ApplicationConfiguration
+	appName  string
+	alert    error
+	location *string
+}
+
+func AddApplicationFactory(ctx reactor.ScreenContext) reactor.Screen {
+	return &AddApplication{
+		ctx: ctx,
+	}
+}
+
+func (aa *AddApplication) Mount() {
+	aa.render()
+}
+
+func (aa *AddApplication) OnUserEvent(evt *brc.UserEvent) {
+	switch evt.ElementID {
+	case "descriptor":
+		config := &core.ApplicationConfiguration{}
+		err := json.Unmarshal([]byte(evt.Data), &config)
+		if err != nil {
+			aa.alert = err
+			aa.config = nil
+		} else {
+			aa.alert = nil
+			aa.config = config
+		}
+
+		parts := strings.Split(evt.Value, ".")
+
+		aa.appName = parts[0]
+		aa.render()
+	case "app_name":
+		aa.appName = evt.Value
+		aa.render()
+	case "deploy_btn":
+		_, err := core.ApparatchikInstance.NewApplication(aa.appName, aa.config)
+
+		if err != nil {
+			aa.alert = err
+		} else {
+			newLoc := "#/"
+			aa.location = &newLoc
+		}
+		aa.render()
+	}
+}
+
+func (aa *AddApplication) render() {
+	addView := addApplicationUI.DeepCopy()
+
+	addView.SetElementAttribute("app_name", "value", aa.appName)
+
+	if aa.alert == nil {
+		addView.DeleteChild("alert")
+	} else {
+		addView.SetElementText("alert", aa.alert.Error())
+	}
+
+	if aa.config != nil {
+		addView.SetElementAttribute("descriptor", "disabled", true)
+		addView.SetElementAttribute("deploy_btn", "disabled", false)
+	} else {
+		addView.DeleteChild("name_form")
+		addView.DeleteChild("deploy_btn")
+	}
+
+	view := WithNavigation(addView, [][]string{{"Applications", "#/"}, {"Add Application", "#/add_application"}})
+
+	aa.ctx.UpdateScreen(&brc.DisplayUpdate{
+		Model:    view,
+		Location: aa.location,
+	})
+
+}
+
+func (aa *AddApplication) Unmount() {}
+
+func addApplicationForm(alert error, hideFileForm bool, appName string) *brc.DisplayModel {
 	addView := addApplicationUI.DeepCopy()
 
 	addView.SetElementAttribute("app_name", "value", appName)
@@ -31,7 +113,7 @@ func addApplicationForm(alert error, hideFileForm bool, appName string) *bc.Disp
 	return WithNavigation(addView, [][]string{{"Applications", "#/"}, {"Add Application", "#/add_application"}})
 }
 
-var addApplicationUI = bc.MustParseDisplayModel(`
+var addApplicationUI = brc.MustParseDisplayModel(`
 	<form>
 		<bs.Alert id="alert" bsStyle="danger"/>
 		<bs.FormGroup controlId="descriptorFile" id="file_form">
@@ -47,83 +129,3 @@ var addApplicationUI = bc.MustParseDisplayModel(`
 		<bs.Button id="deploy_btn" reportEvents="click" bool:disabled="true">Deploy</bs.Button>
 	</form>
 `)
-
-type AddApp struct {
-	display     chan *bc.DisplayUpdate
-	apparatchik *core.Apparatchik
-	config      *core.ApplicationConfiguration
-	appName     string
-	alert       error
-	location    *string
-}
-
-func (a *AddApp) render() {
-	addView := addApplicationUI.DeepCopy()
-
-	addView.SetElementAttribute("app_name", "value", a.appName)
-
-	if a.alert == nil {
-		addView.DeleteChild("alert")
-	} else {
-		addView.SetElementText("alert", a.alert.Error())
-	}
-
-	if a.config != nil {
-		addView.SetElementAttribute("descriptor", "disabled", true)
-		addView.SetElementAttribute("deploy_btn", "disabled", false)
-	} else {
-		addView.DeleteChild("name_form")
-		addView.DeleteChild("deploy_btn")
-	}
-
-	view := WithNavigation(addView, [][]string{{"Applications", "#/"}, {"Add Application", "#/add_application"}})
-
-	a.display <- &bc.DisplayUpdate{
-		Model:    view,
-		Location: a.location,
-	}
-}
-
-func (a *AddApp) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
-	a.display = display
-	a.render()
-	return nil
-}
-
-func (a *AddApp) Unmount() {
-
-}
-
-func (a *AddApp) EvtDescriptor(evt *bc.UserEvent) {
-	config := &core.ApplicationConfiguration{}
-	err := json.Unmarshal([]byte(evt.Data), &config)
-	if err != nil {
-		a.alert = err
-		a.config = nil
-	} else {
-		a.alert = nil
-		a.config = config
-	}
-
-	parts := strings.Split(evt.Value, ".")
-
-	a.appName = parts[0]
-	a.render()
-}
-
-func (a *AddApp) EvtApp_name(evt *bc.UserEvent) {
-	a.appName = evt.Value
-	a.render()
-}
-
-func (a *AddApp) EvtDeploy_btn(evt *bc.UserEvent) {
-	_, err := a.apparatchik.NewApplication(a.appName, a.config)
-
-	if err != nil {
-		a.alert = err
-	} else {
-		newLoc := "#/"
-		a.location = &newLoc
-	}
-	a.render()
-}

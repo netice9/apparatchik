@@ -88,6 +88,18 @@
 			"revisionTime": "2016-06-13T14:20:13-07:00"
 		},
 		{
+			"checksumSHA1": "u6xQOg2fe2ieVYLTQfi2TYCsA7g=",
+			"path": "github.com/draganm/emission",
+			"revision": "051e416c6e13553f48965675fcbf1158f62f7d15",
+			"revisionTime": "2016-11-01T23:07:35Z"
+		},
+		{
+			"checksumSHA1": "5ftkjfUwI9A6xCQ1PwIAd5+qlo0=",
+			"path": "github.com/elazarl/go-bindata-assetfs",
+			"revision": "e1a2a7ec64b07d04ac9ebb072404fe8b7b60de1b",
+			"revisionTime": "2016-08-03T19:23:04Z"
+		},
+		{
 			"path": "github.com/fsouza/go-dockerclient",
 			"revision": "1a3d0cfd7814bbfe44ada7617654948c99891749",
 			"revisionTime": "2016-06-24T20:07:25-03:00"
@@ -258,6 +270,12 @@
 			"revisionTime": "2015-12-07T19:24:34+01:00"
 		},
 		{
+			"checksumSHA1": "nbjIYFo6HjYVvRIjFjOXhCbPIvo=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "0aa62d5ddceb50dbcb909d790b5345affd3669b6",
+			"revisionTime": "2016-07-13T18:03:06Z"
+		},
+		{
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "e3a8ff8ce36581f87a15341206f205b1da467059",
 			"revisionTime": "2015-12-07T16:24:04-08:00"
@@ -268,9 +286,39 @@
 			"revisionTime": "2015-12-07T16:24:04-08:00"
 		},
 		{
+			"checksumSHA1": "hMj8vjbjGCAE368E3xAjZGFON+E=",
+			"path": "github.com/urfave/negroni",
+			"revision": "3f7ce7b928e14ff890b067e5bbbc80af73690a9c",
+			"revisionTime": "2016-09-09T03:51:52Z"
+		},
+		{
 			"path": "gitlab.netice9.com/dragan/go-bootreactor/core",
 			"revision": "24fa1d7f1d122d46f5fba7a6cef29f21108a760a",
 			"revisionTime": "2016-07-06T15:20:07+01:00"
+		},
+		{
+			"checksumSHA1": "EgLDkUuimXXV/IBuIrTIbQ8/Gkc=",
+			"path": "gitlab.netice9.com/dragan/go-reactor",
+			"revision": "4d29b59827f5cfbd703710e5ae481deccba2bf2a",
+			"revisionTime": "2016-11-13T14:44:05Z"
+		},
+		{
+			"checksumSHA1": "HhMiTQajTc/1cvXugsGGY1IitYM=",
+			"path": "gitlab.netice9.com/dragan/go-reactor/core",
+			"revision": "4d29b59827f5cfbd703710e5ae481deccba2bf2a",
+			"revisionTime": "2016-11-13T14:44:05Z"
+		},
+		{
+			"checksumSHA1": "SgqJBsyWB+J74lUKj6++weEvZnQ=",
+			"path": "gitlab.netice9.com/dragan/go-reactor/path",
+			"revision": "4d29b59827f5cfbd703710e5ae481deccba2bf2a",
+			"revisionTime": "2016-11-13T14:44:05Z"
+		},
+		{
+			"checksumSHA1": "+s99IDf5RKaDp7hHACUCSBSOfEA=",
+			"path": "gitlab.netice9.com/dragan/go-reactor/public",
+			"revision": "4d29b59827f5cfbd703710e5ae481deccba2bf2a",
+			"revisionTime": "2016-11-13T14:44:05Z"
 		},
 		{
 			"path": "golang.org/x/net/context",
@@ -282,5 +330,6 @@
 			"revision": "076b546753157f758b316e59bcb51e6807c04057",
 			"revisionTime": "2016-06-01T22:49:39+09:30"
 		}
-	]
+	],
+	"rootPath": "github.com/netice9/apparatchik/apparatchik"
 }

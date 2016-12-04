@@ -1,24 +1,22 @@
 package core
 
-//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=[]string -out-dir=.
-//go:generate mv notifier.go apparatchik_notifier.go
-//go:generate sed -i "s/^package notifier/package core/" apparatchik_notifier.go
-//go:generate sed -i "s/Notifier/ApparatchikNotifier/g" apparatchik_notifier.go
-
 import (
 	"errors"
 	"sort"
 	"sync"
 
+	"github.com/draganm/emission"
 	"github.com/fsouza/go-dockerclient"
 )
 
+var ApparatchikInstance *Apparatchik
+
 type Apparatchik struct {
 	sync.Mutex
-	*ApparatchikNotifier
 	applications        map[string]*Application
 	dockerClient        *docker.Client
 	dockerEventsChannel chan *docker.APIEvents
+	*emission.Emitter
 }
 
 func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
@@ -32,8 +30,10 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 		applications:        map[string]*Application{},
 		dockerClient:        dockerClient,
 		dockerEventsChannel: dockerEventsChannel,
-		ApparatchikNotifier: NewApparatchikNotifier([]string{}),
+		Emitter:             emission.NewEmitter(),
 	}
+
+	apparatchick.Emitter.SetMaxListeners(500)
 
 	// call HandleDockerEvent for every new docker event
 	// in a separate go-routine
@@ -43,7 +43,7 @@ func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
 		}
 	}()
 
-	apparatchick.Notify(apparatchick.applicatioNames())
+	apparatchick.Emitter.Emit("applications", apparatchick.applicatioNames())
 
 	return apparatchick, nil
 
@@ -112,8 +112,7 @@ func (a *Apparatchik) NewApplication(name string, config *ApplicationConfigurati
 	application := NewApplication(name, config, a.dockerClient)
 	a.applications[name] = application
 
-	applicationNames := a.applicatioNames()
-	a.Notify(applicationNames)
+	a.Emit("applications", a.applicatioNames())
 
 	return application.Status(), nil
 }
@@ -135,8 +134,7 @@ func (a *Apparatchik) TerminateApplication(applicationName string) error {
 
 	application.TerminateApplication()
 
-	applicationNames := a.applicatioNames()
-	a.Notify(applicationNames)
+	a.Emit("applications", a.applicatioNames())
 
 	return nil
 }
