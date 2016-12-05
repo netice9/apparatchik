@@ -71,6 +71,7 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	reactor.AddScreen("/add_application", ui.AddApplicationFactory)
 	reactor.AddScreen("/apps/:application", ui.ApplicationFactory)
 	reactor.AddScreen("/apps/:application/:goal/xterm", ui.XTermFactory)
+	reactor.AddScreen("/apps/:application/:goal", ui.GoalFactory)
 	reactor.Serve(bnd)
 
 }
