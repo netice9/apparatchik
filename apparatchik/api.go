@@ -9,6 +9,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/netice9/apparatchik/apparatchik/core"
+	"github.com/netice9/apparatchik/apparatchik/public"
 	"github.com/netice9/apparatchik/apparatchik/ui"
 	"github.com/urfave/negroni"
 	"gitlab.netice9.com/dragan/go-reactor"
@@ -57,7 +58,7 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
 
-	reactor := reactor.New(NewAuthHandler(), negroni.NewStatic(http.Dir("public")), &negroniHTTPRouter{router})
+	reactor := reactor.New(NewAuthHandler(), negroni.NewStatic(public.AssetFS()), &negroniHTTPRouter{router})
 
 	bnd := ":8080"
 
