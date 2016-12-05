@@ -3,12 +3,114 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
-	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
+	"gitlab.netice9.com/dragan/go-reactor"
+	brc "gitlab.netice9.com/dragan/go-reactor/core"
 )
 
-var goalRowUI = bc.MustParseDisplayModel(`
+type Application struct {
+	sync.Mutex
+	ctx       reactor.ScreenContext
+	app       *core.Application
+	alert     error
+	status    core.ApplicationStatus
+	showModal bool
+}
+
+func ApplicationFactory(ctx reactor.ScreenContext) reactor.Screen {
+	appName := ctx.Params["application"]
+
+	app, err := core.ApparatchikInstance.GetApplicationByName(appName)
+
+	if err != nil {
+		return reactor.DefaultNotFoundScreenFactory(ctx)
+	}
+
+	return &Application{
+		ctx: ctx,
+		app: app,
+	}
+}
+
+func (a *Application) Mount() {
+	a.app.On("update", a.onUpdate)
+	a.app.On("terminated", a.onTerminated)
+	a.onUpdate(a.app.Status())
+}
+
+func (a *Application) OnUserEvent(evt *brc.UserEvent) {
+	a.Lock()
+	defer a.Unlock()
+
+	switch evt.ElementID {
+	case "deleteButton":
+		a.showModal = true
+	case "deleteCancelButton":
+		a.showModal = false
+	case "deleteConfirmButton":
+		a.showModal = false
+		a.alert = errors.New("Deleting application.")
+
+		err := core.ApparatchikInstance.TerminateApplication(a.app.Name)
+		if err != nil {
+			a.alert = err
+		}
+
+	}
+	a.render()
+
+}
+
+func (a *Application) onUpdate(status core.ApplicationStatus) {
+	a.Lock()
+	defer a.Unlock()
+	a.status = status
+	a.render()
+}
+
+func (a *Application) onTerminated() {
+	location := "#/"
+	a.ctx.UpdateScreen(&brc.DisplayUpdate{
+		Location: &location,
+	})
+}
+
+func (a *Application) render() {
+	view := applicationUI.DeepCopy()
+	view.SetElementAttribute("app_panel", "header", a.status.Name)
+	view.SetElementText("main_goal", a.app.MainGoal)
+
+	for name, goal := range a.status.Goals {
+		row := goalRowUI.DeepCopy()
+		row.SetElementText("goal_name", name)
+		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))
+		row.SetElementAttribute("goal_term_link", "href", fmt.Sprintf("#/apps/%s/%s/xterm", a.app.Name, goal.Name))
+		row.SetElementText("goal_state", goal.Status)
+		view.AppendChild("goal_table_body", row)
+	}
+
+	if a.alert != nil {
+		view.SetElementText("alert", a.alert.Error())
+	} else {
+		view.DeleteChild("alert")
+	}
+
+	view.SetElementAttribute("delete_confirm_modal", "show", a.showModal)
+	view.SetElementText("application_name", a.app.Name)
+
+	a.ctx.UpdateScreen(&brc.DisplayUpdate{
+		Model: WithNavigation(view, [][]string{{"Applications", "#/"}, {a.app.Name, fmt.Sprintf("#/apps/%s", a.app.Name)}}),
+	})
+}
+
+func (a *Application) Unmount() {
+	a.app.RemoveListener("update", a.onUpdate)
+	a.app.RemoveListener("terminated", a.onUpdate)
+}
+
+var goalRowUI = brc.MustParseDisplayModel(`
   <tr id="row">
     <td ><a id="goal_name" href="#" className="btn btn-default"/></td>
     <td id="goal_state" />
@@ -17,7 +119,7 @@ var goalRowUI = bc.MustParseDisplayModel(`
 		</td>
   </tr>
 `)
-var applicationUI = bc.MustParseDisplayModel(`
+var applicationUI = brc.MustParseDisplayModel(`
   <div>
     <bs.Panel id="app_panel" header="">
       <bs.Alert id="alert" bsStyle="danger"/>
@@ -60,86 +162,3 @@ var applicationUI = bc.MustParseDisplayModel(`
     </bs.Panel>
   </div>
 `)
-
-type AppS struct {
-	display     chan *bc.DisplayUpdate
-	updates     chan core.ApplicationStatus
-	apparatchik *core.Apparatchik
-	app         *core.Application
-	alert       error
-	status      core.ApplicationStatus
-	showModal   bool
-}
-
-func (a *AppS) render() {
-	view := applicationUI.DeepCopy()
-	view.SetElementAttribute("app_panel", "header", a.status.Name)
-	view.SetElementText("main_goal", a.app.MainGoal)
-
-	for name, goal := range a.status.Goals {
-		row := goalRowUI.DeepCopy()
-		row.SetElementText("goal_name", name)
-		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))
-		row.SetElementAttribute("goal_term_link", "href", fmt.Sprintf("#/apps/%s/%s/xterm", a.app.Name, goal.Name))
-		row.SetElementText("goal_state", goal.Status)
-		view.AppendChild("goal_table_body", row)
-	}
-
-	if a.alert != nil {
-		view.SetElementText("alert", a.alert.Error())
-	} else {
-		view.DeleteChild("alert")
-	}
-
-	view.SetElementAttribute("delete_confirm_modal", "show", a.showModal)
-	view.SetElementText("application_name", a.app.Name)
-
-	a.display <- &bc.DisplayUpdate{
-		Model: WithNavigation(view, [][]string{{"Applications", "#/"}, {a.app.Name, fmt.Sprintf("#/apps/%s", a.app.Name)}}),
-	}
-}
-
-func (a *AppS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
-	a.display = display
-	a.updates = a.app.AddListener(0)
-	a.render()
-	return map[string]interface{}{"applicationStatus": a.updates}
-}
-
-func (a *AppS) ReceivedApplicationStatus(status core.ApplicationStatus) {
-	a.status = status
-	a.render()
-}
-
-func (a *AppS) ClosedApplicationStatus() bool {
-	location := "#/"
-	a.display <- &bc.DisplayUpdate{
-		Location: &location,
-	}
-	return false
-}
-
-func (a *AppS) EvtDeleteButton(evt *bc.UserEvent) {
-	a.showModal = true
-	a.render()
-}
-
-func (a *AppS) EvtDeleteCancelButton(evt *bc.UserEvent) {
-	a.showModal = false
-	a.render()
-}
-
-func (a *AppS) EvtDeleteConfirmButton(evt *bc.UserEvent) {
-	a.showModal = false
-	a.alert = errors.New("Deleting application.")
-
-	err := a.apparatchik.TerminateApplication(a.app.Name)
-	if err != nil {
-		a.alert = err
-	}
-	a.render()
-}
-
-func (a *AppS) Unmount() {
-	a.app.RemoveListener(a.updates)
-}

@@ -2,32 +2,17 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/netice9/apparatchik/apparatchik/core"
-	"github.com/netice9/apparatchik/apparatchik/util/router"
-	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
+	"gitlab.netice9.com/dragan/go-reactor"
+	brc "gitlab.netice9.com/dragan/go-reactor/core"
 )
 
-type Context struct {
-	display     chan *bc.DisplayUpdate
-	userEvents  chan *bc.UserEvent
-	apparatchik *core.Apparatchik
-}
-
-func NewContext(display chan *bc.DisplayUpdate, userEvents chan *bc.UserEvent, apparatchik *core.Apparatchik) *Context {
-	return &Context{
-		display:     display,
-		userEvents:  userEvents,
-		apparatchik: apparatchik,
-	}
-}
-
-var breadcrumbItemUI = bc.MustParseDisplayModel(`
+var breadcrumbItemUI = brc.MustParseDisplayModel(`
 	<bs.Breadcrumb.Item id="breadcrumb_item" href="#" />
 `)
 
-var navigationUI = bc.MustParseDisplayModel(`
+var navigationUI = brc.MustParseDisplayModel(`
   <div>
   	<bs.Navbar bool:fluid="true">
   		<bs.Navbar.Header>
@@ -53,7 +38,7 @@ var navigationUI = bc.MustParseDisplayModel(`
   </div>
 `)
 
-func WithNavigation(content *bc.DisplayModel, breadcrumbs [][]string) *bc.DisplayModel {
+func WithNavigation(content *brc.DisplayModel, breadcrumbs [][]string) *brc.DisplayModel {
 	view := navigationUI.DeepCopy()
 	if len(breadcrumbs) == 0 {
 		view.DeleteChild("breadcrumb")
@@ -72,9 +57,9 @@ func WithNavigation(content *bc.DisplayModel, breadcrumbs [][]string) *bc.Displa
 	return view
 }
 
-var appGroupItem = bc.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
+var appGroupItem = brc.MustParseDisplayModel(`<bs.ListGroupItem id="list_element" href="#link1">Link 1</bs.ListGroupItem>`)
 
-var appGroupUI = bc.MustParseDisplayModel(`
+var appGroupUI = brc.MustParseDisplayModel(`
 <div className="panel panel-default">
 	<div className="panel-heading">
 		<h3>Active Applications</h3>
@@ -88,89 +73,93 @@ var appGroupUI = bc.MustParseDisplayModel(`
 </div>
 `)
 
-type MainS struct {
-	apparatchik *core.Apparatchik
-	display     chan *bc.DisplayUpdate
-	apps        []string
-	listener    chan []string
+// func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen {
+// 	return func(path string) router.Screen {
+//
+// 		if path == "#/add_application" {
+// 			return &AddApp{
+// 				apparatchik: apparatchik,
+// 			}
+// 		}
+//
+// 		if strings.HasPrefix(path, "#/apps/") {
+//
+// 			parts := strings.Split(strings.TrimPrefix(path, "#/apps/"), "/")
+//
+// 			appName := parts[0]
+//
+// 			app, err := apparatchik.GetApplicationByName(appName)
+// 			if err != nil {
+// 				return &MainS{apparatchik: apparatchik}
+// 			}
+//
+// 			if len(parts) == 2 {
+// 				goal, found := app.Goals[parts[1]]
+// 				if !found {
+// 					return &AppS{app: app, apparatchik: apparatchik}
+// 				}
+// 				return &GoalS{
+// 					goal: goal,
+// 				}
+// 			} else if len(parts) == 3 {
+// 				goal, found := app.Goals[parts[1]]
+// 				if !found {
+// 					return &AppS{app: app, apparatchik: apparatchik}
+// 				}
+// 				if parts[2] == "xterm" {
+// 					return &XTerm{
+// 						goal: goal,
+// 					}
+// 				}
+// 			}
+// 			return &AppS{app: app, apparatchik: apparatchik}
+//
+// 		}
+//
+// 		return &MainS{apparatchik: apparatchik}
+// 	}
+// }
+
+func IndexFactory(ctx reactor.ScreenContext) reactor.Screen {
+	return &Index{
+		ctx: ctx,
+	}
 }
 
-func (m *MainS) render() {
+type Index struct {
+	ctx          reactor.ScreenContext
+	applications []string
+}
+
+func (i *Index) Mount() {
+	core.ApparatchikInstance.AddListener("applications", i.onApplications)
+	i.onApplications(core.ApparatchikInstance.ApplicatioNames())
+}
+
+func (i *Index) OnUserEvent(evt *brc.UserEvent) {
+
+}
+
+func (i *Index) render() {
 	listGroup := appGroupUI.DeepCopy()
-	for _, app := range m.apps {
+	for _, app := range i.applications {
 		item := appGroupItem.DeepCopy()
 		item.SetElementText("list_element", app)
 		item.SetElementAttribute("list_element", "href", fmt.Sprintf("#/apps/%s", app))
 		listGroup.AppendChild("list_group", item)
 	}
 
-	m.display <- &bc.DisplayUpdate{
+	i.ctx.UpdateScreen(&brc.DisplayUpdate{
 		Model: WithNavigation(listGroup, [][]string{{"Applications", "#/"}}),
-	}
+	})
 
 }
 
-func (m *MainS) Mount(display chan *bc.DisplayUpdate) map[string]interface{} {
-	m.listener = m.apparatchik.AddListener(0)
-	m.display = display
-	m.render()
-	return map[string]interface{}{
-		"apparatchik": m.listener,
-	}
+func (i *Index) onApplications(applications []string) {
+	i.applications = applications
+	i.render()
 }
 
-func (m *MainS) ReceivedApparatchik(apps []string) {
-	m.apps = apps
-	m.render()
-}
-
-func (m *MainS) Unmount() {
-	m.apparatchik.RemoveListener(m.listener)
-}
-
-func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen {
-	return func(path string) router.Screen {
-
-		if path == "#/add_application" {
-			return &AddApp{
-				apparatchik: apparatchik,
-			}
-		}
-
-		if strings.HasPrefix(path, "#/apps/") {
-
-			parts := strings.Split(strings.TrimPrefix(path, "#/apps/"), "/")
-
-			appName := parts[0]
-
-			app, err := apparatchik.GetApplicationByName(appName)
-			if err != nil {
-				return &MainS{apparatchik: apparatchik}
-			}
-
-			if len(parts) == 2 {
-				goal, found := app.Goals[parts[1]]
-				if !found {
-					return &AppS{app: app, apparatchik: apparatchik}
-				}
-				return &GoalS{
-					goal: goal,
-				}
-			} else if len(parts) == 3 {
-				goal, found := app.Goals[parts[1]]
-				if !found {
-					return &AppS{app: app, apparatchik: apparatchik}
-				}
-				if parts[2] == "xterm" {
-					return &XTerm{
-						goal: goal,
-					}
-				}
-			}
-			return &AppS{app: app, apparatchik: apparatchik}
-
-		}
-
-		return &MainS{apparatchik: apparatchik}
-	}
+func (i *Index) Unmount() {
+	core.ApparatchikInstance.RemoveListener("applications", i.onApplications)
 }

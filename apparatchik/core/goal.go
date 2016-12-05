@@ -1,10 +1,5 @@
 package core
 
-//go:generate gospecific -pkg=github.com/netice9/notifier-go -specific-type=GoalStatus -out-dir=.
-//go:generate mv notifier.go goal_notifier.go
-//go:generate sed -i "s/^package notifier/package core/" goal_notifier.go
-//go:generate sed -i "s/Notifier/GoalNotifier/g" goal_notifier.go
-
 import (
 	"errors"
 	"fmt"
@@ -16,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/draganm/emission"
 	"github.com/fsouza/go-dockerclient"
 )
 
@@ -46,7 +42,6 @@ type GoalStatus struct {
 
 type Goal struct {
 	sync.Mutex
-	*GoalNotifier
 	application          *Application
 	Name                 string
 	ApplicationName      string
@@ -68,10 +63,10 @@ type Goal struct {
 
 	transitionLog []TransitionLogEntry
 
-	// statsTracker *StatsTracker
-
 	stats      Stats
 	lastSample *docker.Stats
+
+	*emission.Emitter
 }
 
 type GoalEvent struct {
@@ -88,7 +83,7 @@ func (goal *Goal) TerminateGoal() {
 			Force:         true,
 		})
 	}
-	goal.GoalNotifier.Close()
+	goal.Emit("terminated")
 }
 
 func (goal *Goal) SetCurrentStatus(status string) {
@@ -380,9 +375,11 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	config := configs[goalName]
 
+	emitter := emission.NewEmitter()
+	emitter.SetMaxListeners(MaxListeners)
+
 	goal := &Goal{
 		application:          application,
-		GoalNotifier:         NewGoalNotifier(GoalStatus{}),
 		Name:                 goalName,
 		ApplicationName:      applicationName,
 		DockerClient:         dockerClient,
@@ -432,6 +429,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 				ReadonlyRootfs: config.ReadOnly,
 			},
 		},
+		Emitter: emitter,
 	}
 
 	if config.Restart != "" {
@@ -572,7 +570,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 }
 
 func (g *Goal) broadcastStatus() {
-	g.Notify(g.status())
+	g.Emitter.Emit("update", g.status())
 }
 
 func replaceRelativePath(pth string) string {

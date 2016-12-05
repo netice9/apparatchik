@@ -9,13 +9,13 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/netice9/apparatchik/apparatchik/core"
+	"github.com/netice9/apparatchik/apparatchik/public"
 	"github.com/netice9/apparatchik/apparatchik/ui"
-	br "github.com/netice9/apparatchik/apparatchik/util/router"
-	bc "gitlab.netice9.com/dragan/go-bootreactor/core"
+	"github.com/urfave/negroni"
+	"gitlab.netice9.com/dragan/go-reactor"
 
 	"github.com/djimenez/iconv-go"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/gorilla/context"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 )
@@ -29,14 +29,21 @@ type API struct {
 	dockerClient *docker.Client
 }
 
+type negroniHTTPRouter struct {
+	*httprouter.Router
+}
+
+func (router *negroniHTTPRouter) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	router.Router.NotFound = next
+	router.Router.ServeHTTP(w, r)
+}
+
 func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client) {
 	api := &API{
 		apparatchick: apparatchick,
 		dockerClient: dockerClient,
 	}
 	router := httprouter.New()
-
-	router.HandlerFunc("GET", "/ws", bc.NewReactorHandler(br.NewRouterConnectionHandler(ui.PathResolver(apparatchick))))
 
 	router.PUT("/api/v1.0/applications/:applicationName", api.CreateApplication)
 	router.DELETE("/api/v1.0/applications/:applicationName", api.DeleteApplication)
@@ -50,9 +57,8 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/current_stats", api.GetGoalCurrentStats)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
-	router.NotFound = http.FileServer(http.Dir("public"))
 
-	handler := context.ClearHandler(NewAuthHandler(router))
+	reactor := reactor.New(NewAuthHandler(), negroni.NewStatic(public.AssetFS()), &negroniHTTPRouter{router})
 
 	bnd := ":8080"
 
@@ -62,7 +68,13 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 		bnd = ":" + port
 	}
 
-	http.ListenAndServe(bnd, handler)
+	reactor.AddScreen("/", ui.IndexFactory)
+	reactor.AddScreen("/add_application", ui.AddApplicationFactory)
+	reactor.AddScreen("/apps/:application", ui.ApplicationFactory)
+	reactor.AddScreen("/apps/:application/:goal/xterm", ui.XTermFactory)
+	reactor.AddScreen("/apps/:application/:goal", ui.GoalFactory)
+	reactor.Serve(bnd)
+
 }
 
 func (a *API) GetApplication(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
