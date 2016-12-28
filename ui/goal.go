@@ -62,7 +62,6 @@ func (g *Goal) render() {
 	memoryPoints, memoryMax := util.TimeSeriesToLine(g.stat.Stats.MemStats, 400, 100, 1024*1024)
 	memoryMBytes := memoryMax / (1024 * 1024)
 	view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
-
 	view.SetElementAttribute("memory_line", "points", memoryPoints)
 
 	g.ctx.UpdateScreen(&reactor.DisplayUpdate{
