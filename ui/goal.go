@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/draganm/go-reactor"
 	"github.com/netice9/apparatchik/core"
@@ -31,6 +32,7 @@ func GoalFactory(ctx reactor.ScreenContext) reactor.Screen {
 }
 
 type Goal struct {
+	sync.Mutex
 	ctx         reactor.ScreenContext
 	goal        *core.Goal
 	stat        core.GoalStatus
@@ -74,19 +76,20 @@ func (g *Goal) Unmount() {
 }
 
 func (g *Goal) onGoalStatus(status core.GoalStatus) {
+	g.Lock()
+	defer g.Unlock()
 	g.stat = status
-
 	g.render()
 }
 
 var goalUI = reactor.MustParseDisplayModel(`
 	<div>
 	  <bs.Panel id="goal_panel" header="CPU Stats">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" class="chart">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" className="chart">
 				<g transform="translate(10,20)">
 					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
 					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
-					<polyline transform="translate(40,0)" id="cpu_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+					<polyline transform="translate(32,0)" id="cpu_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
 					<g fontSize="8px" fontFamily="Georgia" fill="#333">
 						<g textAnchor="end">
 							<text id="max_cpu" x="26" y="2">100 %</text>
@@ -97,9 +100,9 @@ var goalUI = reactor.MustParseDisplayModel(`
 			</svg>
 		</bs.Panel>
 		<bs.Panel id="goal_panel" header="Memory Stats">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" class="chart">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" className="chart">
 				<g transform="translate(10,20)">
-				  <polyline transform="translate(40,0)" id="memory_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+				  <polyline transform="translate(32,0)" id="memory_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
 					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
 					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
 					<g fontSize="8px" fontFamily="Georgia" fill="#333">
