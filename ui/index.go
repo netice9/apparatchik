@@ -67,57 +67,10 @@ var appGroupUI = reactor.MustParseDisplayModel(`
 		<bs.ListGroup id="list_group"/>
 	</div>
 	<div className="panel-footer">
-		<bs.Button draggable="true" href="#/add_application" reportEvents="contextMenu:PD:SP mouseUp:SP:PD:X-button:X-buttons mouseDown:SP:PD:X-button:X-buttons dragStart drag:X-pageX:X-pageY dragOver drop wheel:PD:X-deltaY"><bs.Glyphicon glyph="plus"/> Deploy an Application</bs.Button>
+		<bs.Button htmlID="deploy_button" href="#/add_application"><bs.Glyphicon glyph="plus"/> Deploy an Application</bs.Button>
 	</div>
 </div>
 `)
-
-// func PathResolver(apparatchik *core.Apparatchik) func(path string) router.Screen {
-// 	return func(path string) router.Screen {
-//
-// 		if path == "#/add_application" {
-// 			return &AddApp{
-// 				apparatchik: apparatchik,
-// 			}
-// 		}
-//
-// 		if strings.HasPrefix(path, "#/apps/") {
-//
-// 			parts := strings.Split(strings.TrimPrefix(path, "#/apps/"), "/")
-//
-// 			appName := parts[0]
-//
-// 			app, err := apparatchik.GetApplicationByName(appName)
-// 			if err != nil {
-// 				return &MainS{apparatchik: apparatchik}
-// 			}
-//
-// 			if len(parts) == 2 {
-// 				goal, found := app.Goals[parts[1]]
-// 				if !found {
-// 					return &AppS{app: app, apparatchik: apparatchik}
-// 				}
-// 				return &GoalS{
-// 					goal: goal,
-// 				}
-// 			} else if len(parts) == 3 {
-// 				goal, found := app.Goals[parts[1]]
-// 				if !found {
-// 					return &AppS{app: app, apparatchik: apparatchik}
-// 				}
-// 				if parts[2] == "xterm" {
-// 					return &XTerm{
-// 						goal: goal,
-// 					}
-// 				}
-// 			}
-// 			return &AppS{app: app, apparatchik: apparatchik}
-//
-// 		}
-//
-// 		return &MainS{apparatchik: apparatchik}
-// 	}
-// }
 
 func IndexFactory(ctx reactor.ScreenContext) reactor.Screen {
 	return &Index{

@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -38,7 +38,7 @@ func (router *negroniHTTPRouter) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	router.Router.ServeHTTP(w, r)
 }
 
-func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client) {
+func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client, port int) error {
 	api := &API{
 		apparatchick: apparatchick,
 		dockerClient: dockerClient,
@@ -60,37 +60,32 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 
 	reactor := reactor.New(NewAuthHandler(), negroni.NewStatic(public.AssetFS()), &negroniHTTPRouter{router})
 
-	bnd := ":8080"
-
-	port := os.Getenv("PORT")
-
-	if port != "" {
-		bnd = ":" + port
-	}
-
 	err := reactor.AddScreen("/", ui.IndexFactory)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	err = reactor.AddScreen("/add_application", ui.AddApplicationFactory)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	err = reactor.AddScreen("/apps/:application", ui.ApplicationFactory)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = reactor.AddScreen("/apps/:application/:goal/xterm", ui.XTermFactory)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = reactor.AddScreen("/apps/:application/:goal", ui.GoalFactory)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	bnd := fmt.Sprintf(":%d", port)
 	reactor.Serve(bnd)
+	return nil
 
 }
 
