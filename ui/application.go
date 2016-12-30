@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/draganm/go-reactor"
@@ -81,7 +82,16 @@ func (a *Application) render() {
 	view.SetElementAttribute("app_panel", "header", a.status.Name)
 	view.SetElementText("main_goal", a.app.MainGoal)
 
-	for name, goal := range a.status.Goals {
+	goalNames := []string{}
+
+	for goalName := range a.status.Goals {
+		goalNames = append(goalNames, goalName)
+	}
+
+	sort.Strings(goalNames)
+
+	for _, name := range goalNames {
+		goal := a.status.Goals[name]
 		row := goalRowUI.DeepCopy()
 		row.SetElementText("goal_name", name)
 		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))

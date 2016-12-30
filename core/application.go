@@ -39,12 +39,6 @@ type ApplicationStatus struct {
 	MainGoal string                `json:"main_goal"`
 }
 
-func NewApplicationStatus() ApplicationStatus {
-	return ApplicationStatus{
-		Goals: map[string]GoalStatus{},
-	}
-}
-
 func (a *Application) GoalStatusUpdate(goalName, status string) {
 
 	for name, goal := range a.Goals {
