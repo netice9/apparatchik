@@ -1,0 +1,17 @@
+FROM golang:1.7.3
+
+# this is needed for Integration Tests
+RUN apt-get -y update && apt-get -y install libfontconfig
+RUN go get github.com/onsi/ginkgo/ginkgo
+COPY test-deps /
+# ENV PATH=$PATH:/test-deps
+
+# from here it should be the same as Dockerfile
+RUN mkdir -p /go/src/github.com/netice9/apparatchik
+WORKDIR /go/src/github.com/netice9/apparatchik
+COPY . /go/src/github.com/netice9/apparatchik
+RUN go install .
+
+CMD ["/go/bin/apparatchik"]
+EXPOSE 8080
+VOLUME ["/applications"]
