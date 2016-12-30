@@ -1,11 +1,14 @@
 package integration_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -22,25 +25,19 @@ func TestIntegration(t *testing.T) {
 
 var agoutiDriver *agouti.WebDriver
 
-var apparatchikCmd *exec.Cmd
-
 var _ = BeforeSuite(func(done Done) {
 
 	agoutiDriver = agouti.PhantomJS()
 	Expect(agoutiDriver.Start()).To(Succeed())
 	Expect(buildApparatchik()).To(Succeed())
-	var err error
-	apparatchikCmd, err = startApparatchik()
-	Expect(err).ToNot(HaveOccurred())
-
-	waitForApparatchikToStart(12080)
+	startApparatchik()
 	close(done)
 }, 5.0)
 
-var _ = AfterSuite(func() {
+var _ = AfterSuite(func(done Done) {
 	Expect(agoutiDriver.Stop()).To(Succeed())
-	Expect(apparatchikCmd.Process.Kill()).To(Succeed())
-	apparatchikCmd.Wait()
+	stopApparatchik()
+	close(done)
 })
 
 func buildApparatchik() error {
@@ -56,7 +53,21 @@ func buildApparatchik() error {
 	return cmd.Run()
 }
 
-func startApparatchik() (*exec.Cmd, error) {
+var apparatchikProcess *os.Process
+
+func startApparatchik() {
+	cmd, err := startApparatchikProcess()
+	Expect(err).ToNot(HaveOccurred())
+	apparatchikProcess = cmd.Process
+	waitForApparatchikToStart()
+}
+
+func stopApparatchik() {
+	Expect(apparatchikProcess.Signal(syscall.SIGTERM)).To(Succeed())
+	apparatchikProcess.Wait()
+}
+
+func startApparatchikProcess() (*exec.Cmd, error) {
 	cmd := exec.Command("./apparatchik", "--port", "12080")
 	wd, err := os.Getwd()
 	if err != nil {
@@ -69,12 +80,33 @@ func startApparatchik() (*exec.Cmd, error) {
 	return cmd, cmd.Start()
 }
 
-func waitForApparatchikToStart(port int) {
+func waitForApparatchikToStart() {
 	for {
-		response, err := http.Get(fmt.Sprintf("http://localhost:%d/", port))
+		response, err := http.Get("http://localhost:12080/")
 		if err == nil && response.StatusCode == 200 {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func clearApparatchik() {
+	response, err := http.Get("http://localhost:12080/api/v1.0/applications")
+	Expect(err).ToNot(HaveOccurred())
+	defer response.Body.Close()
+
+	data, err := ioutil.ReadAll(response.Body)
+	Expect(err).ToNot(HaveOccurred())
+	names := []string{}
+	Expect(json.Unmarshal(data, &names)).To(Succeed())
+
+	for _, appName := range names {
+
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://localhost:12080/api/v1.0/applications/%s", appName), nil)
+		Expect(err).ToNot(HaveOccurred())
+		response, err := http.DefaultClient.Do(req)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(response.StatusCode).To(Equal(204))
+
 	}
 }

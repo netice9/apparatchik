@@ -63,9 +63,7 @@ var _ = Describe("apparatchik", func() {
 			}
 		}
 
-		AfterEach(func() {
-			apparatchik.Stop()
-		})
+		AfterEach(apparatchik.Stop)
 
 		XDescribe("NewApplication()", func() {
 			It("Should start and execute a new application", func(done Done) {

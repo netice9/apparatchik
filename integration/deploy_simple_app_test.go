@@ -11,6 +11,8 @@ import (
 var _ = Describe("DeploySimpleApp", func() {
 	var page *agouti.Page
 
+	BeforeEach(clearApparatchik)
+
 	BeforeEach(func() {
 		var err error
 		page, err = agoutiDriver.NewPage()
@@ -31,6 +33,15 @@ var _ = Describe("DeploySimpleApp", func() {
 		})
 		It("Should have one application deployed", func() {
 			Eventually(page.FindByLink("simple")).Should(BeFound())
+		})
+		Context("When I click on the application name", func() {
+			BeforeEach(func() {
+				Eventually(page.FindByLink("simple")).Should(BeFound())
+				Expect(page.FindByLink("simple").Click()).To(Succeed())
+			})
+			It("Should have panel with the application name", func() {
+				Eventually(page.FindByClass("panel-heading")).Should(HaveText("simple"))
+			})
 		})
 	})
 
