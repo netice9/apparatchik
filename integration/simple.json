@@ -1,0 +1,9 @@
+{
+  "goals": {
+    "simple-goal": {
+      "image": "alpine:3.4",
+      "command": ["sleep","999999999"]
+    }
+  },
+  "main_goal": "simple-goal"
+}
