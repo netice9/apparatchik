@@ -35,8 +35,8 @@ var _ = BeforeSuite(func(done Done) {
 }, 5.0)
 
 var _ = AfterSuite(func(done Done) {
-	Expect(agoutiDriver.Stop()).To(Succeed())
 	stopApparatchik()
+	Expect(agoutiDriver.Stop()).To(Succeed())
 	close(done)
 })
 
@@ -53,18 +53,18 @@ func buildApparatchik() error {
 	return cmd.Run()
 }
 
-var apparatchikProcess *os.Process
+var apparatchikCommand *exec.Cmd
 
 func startApparatchik() {
 	cmd, err := startApparatchikProcess()
 	Expect(err).ToNot(HaveOccurred())
-	apparatchikProcess = cmd.Process
+	apparatchikCommand = cmd
 	waitForApparatchikToStart()
 }
 
 func stopApparatchik() {
-	Expect(apparatchikProcess.Signal(syscall.SIGTERM)).To(Succeed())
-	apparatchikProcess.Wait()
+	Expect(apparatchikCommand.Process.Signal(syscall.SIGTERM)).To(Succeed())
+	apparatchikCommand.Wait()
 }
 
 func startApparatchikProcess() (*exec.Cmd, error) {
@@ -81,6 +81,7 @@ func startApparatchikProcess() (*exec.Cmd, error) {
 }
 
 func waitForApparatchikToStart() {
+
 	for {
 		response, err := http.Get("http://localhost:12080/")
 		if err == nil && response.StatusCode == 200 {
@@ -88,6 +89,7 @@ func waitForApparatchikToStart() {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+
 }
 
 func clearApparatchik() {
