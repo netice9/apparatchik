@@ -12,7 +12,7 @@ var _ = Describe("API V1.0", func() {
 	BeforeEach(clearApparatchik)
 
 	Describe("GET /api/v1.0/applications", func() {
-		FContext("When there are no applications defined", func() {
+		Context("When there are no applications defined", func() {
 			var response *http.Response
 			BeforeEach(func() {
 				var err error
