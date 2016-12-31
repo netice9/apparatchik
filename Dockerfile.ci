@@ -3,7 +3,7 @@ FROM golang:1.7.3
 # this is needed for Integration Tests
 RUN apt-get -y update && apt-get -y install libfontconfig
 RUN go get github.com/onsi/ginkgo/ginkgo
-COPY test-deps /
+COPY test-deps /test-deps/
 ENV PATH=$PATH:/test-deps
 
 # from here it should be the same as Dockerfile
