@@ -4,7 +4,7 @@ FROM golang:1.7.3
 RUN apt-get -y update && apt-get -y install libfontconfig
 RUN go get github.com/onsi/ginkgo/ginkgo
 COPY test-deps /
-# ENV PATH=$PATH:/test-deps
+ENV PATH=$PATH:/test-deps
 
 # from here it should be the same as Dockerfile
 RUN mkdir -p /go/src/github.com/netice9/apparatchik

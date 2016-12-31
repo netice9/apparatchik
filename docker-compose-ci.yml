@@ -7,5 +7,4 @@ services:
     command: ["ginkgo -r -v"]
     entrypoint: ["/bin/sh","-c"]
     volumes:
-      - ./test-deps:/test-deps:ro
       - "/var/run/docker.sock:/var/run/docker.sock"
