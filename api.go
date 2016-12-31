@@ -377,14 +377,13 @@ func (a *API) CreateApplication(w http.ResponseWriter, r *http.Request, ps httpr
 
 	status, err := a.apparatchick.NewApplication(applicationName, &applicationConfiguration)
 
-	log.Info("application created and status returned")
-
 	if err != nil {
 		respondWithError(err, w)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprintf("/api/v1.0/applications/%s", applicationName))
 	w.WriteHeader(201)
 
 	if err := json.NewEncoder(w).Encode(status); err != nil {
