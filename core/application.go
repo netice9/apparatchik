@@ -40,7 +40,6 @@ type ApplicationStatus struct {
 }
 
 func (a *Application) GoalStatusUpdate(goalName, status string) {
-
 	for name, goal := range a.Goals {
 		if name != goalName {
 			goal.SiblingStatusUpdate(goalName, status)
@@ -50,6 +49,8 @@ func (a *Application) GoalStatusUpdate(goalName, status string) {
 }
 
 func (a *Application) Status() ApplicationStatus {
+	a.Lock()
+	defer a.Unlock()
 
 	goalStats := map[string]GoalStatus{}
 
@@ -74,6 +75,7 @@ func (a *Application) goalByName(goalName string) (*Goal, error) {
 	}
 	return goal, nil
 }
+
 func (a *Application) Logs(goalName string, w io.Writer) error {
 	goal, err := a.goalByName(goalName)
 	if err != nil {
@@ -183,6 +185,9 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 }
 
 func (a *Application) TerminateApplication() {
+	a.Lock()
+	defer a.Unlock()
+
 	os.Remove(a.ApplicationFileName)
 	for _, goal := range a.Goals {
 		goal.TerminateGoal()
@@ -202,6 +207,8 @@ func (a *Application) RequestGoalStart(name string) {
 }
 
 func (a *Application) HandleDockerEvent(evt *docker.APIEvents) {
+	a.Lock()
+	defer a.Unlock()
 
 	for _, goal := range a.Goals {
 		goal.HandleDockerEvent(evt)
