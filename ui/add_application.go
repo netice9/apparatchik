@@ -35,8 +35,14 @@ func (aa *AddApplication) OnUserEvent(evt *reactor.UserEvent) {
 			aa.alert = err
 			aa.config = nil
 		} else {
-			aa.alert = nil
-			aa.config = config
+			err = config.Validate()
+			if err != nil {
+				aa.alert = err
+				aa.config = nil
+			} else {
+				aa.alert = nil
+				aa.config = config
+			}
 		}
 
 		parts := strings.Split(evt.Value, ".")
