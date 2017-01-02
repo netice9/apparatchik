@@ -3,6 +3,7 @@ package core
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,20 +22,10 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/draganm/emission"
+	"github.com/netice9/apparatchik/core/stats"
 )
 
 const trackerHistorySize = 120
-const transitionLogMaxLength = 255
-
-type Sample struct {
-	Value uint64    `json:"value"`
-	Time  time.Time `json:"time"`
-}
-
-type Stats struct {
-	CpuStats []Sample `json:"cpu_stats"`
-	MemStats []Sample `json:"mem_stats"`
-}
 
 type TransitionLogEntry struct {
 	Time   time.Time `json:"time"`
@@ -45,7 +36,6 @@ type GoalStatus struct {
 	Name     string `json:"name"`
 	Status   string `json:"status"`
 	ExitCode *int   `json:"exit_code,omitempty"`
-	Stats    Stats  `json:"stats,omitempty"`
 }
 
 type Goal struct {
@@ -64,7 +54,6 @@ type Goal struct {
 	AuthConfig           AuthConfiguration
 	SmartRestart         bool
 
-	// CreateContainerOptions docker.CreateContainerOptions
 	containerName    string
 	containerConfig  *container.Config
 	hostConfig       *container.HostConfig
@@ -73,14 +62,10 @@ type Goal struct {
 	ContainerId *string
 	ExitCode    *int
 
-	transitionLog []TransitionLogEntry
-
-	// stats Stats
-	// lastSample *docker.Stats
-
 	*emission.Emitter
 
-	tail []string
+	tail    []string
+	tracker *stats.Tracker
 }
 
 type GoalEvent struct {
@@ -127,12 +112,6 @@ func (goal *Goal) SetCurrentStatus(status string) {
 func (goal *Goal) setCurrentStatus(status string) {
 
 	log.Debug("setting current status of goal ", goal.Name, " to ", status)
-
-	goal.transitionLog = append(goal.transitionLog, TransitionLogEntry{Time: time.Now(), Status: status})
-
-	if len(goal.transitionLog) > transitionLogMaxLength {
-		goal.transitionLog = goal.transitionLog[1:]
-	}
 
 	go goal.application.GoalStatusUpdate(goal.Name, status)
 
@@ -220,35 +199,80 @@ func (goal *Goal) SetExitCode(exitCode int) {
 	}
 
 }
+
+func (goal *Goal) startTailingLog() {
+
+	goal.AddLineToTail("----------\n")
+	goal.AddLineToTail(fmt.Sprintf("Container with ID %q started\n", *goal.ContainerId))
+	rc, err := goal.DockerClient.ContainerLogs(context.Background(), *goal.ContainerId, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Timestamps: true,
+		Follow:     true,
+		Details:    false,
+	})
+	if err != nil {
+		goal.AddLineToTail("Could not tail output: " + err.Error() + "\n")
+	}
+	br := bufio.NewReader(rc)
+	defer rc.Close()
+	for {
+		line, err := br.ReadString('\n')
+		if err != nil {
+			goal.AddLineToTail("output closed...\n")
+			return
+		}
+		goal.AddLineToTail(line[8:])
+	}
+
+}
+
+func (goal *Goal) startTrackingContainer() {
+
+	stream, err := goal.DockerClient.ContainerStats(context.Background(), *goal.ContainerId, true)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	decoder := json.NewDecoder(stream.Body)
+
+	stats := types.StatsJSON{}
+
+	for {
+		err = decoder.Decode(&stats)
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		goal.AddStats(stats)
+	}
+
+}
+
+func (goal *Goal) AddStats(st types.StatsJSON) {
+	goal.Lock()
+	defer goal.Unlock()
+
+	goal.tracker.Add(stats.Entry{
+		Time:   st.Read,
+		CPU:    st.CPUStats.CPUUsage.TotalUsage - st.PreCPUStats.CPUUsage.TotalUsage,
+		Memory: st.MemoryStats.Usage,
+	})
+	goal.Emit("stats", goal.tracker.Entries())
+}
+
 func (goal *Goal) handleDockerEvent(evt events.Message) {
 	if goal.ContainerId != nil && evt.ID == *goal.ContainerId {
 		if evt.Status == "start" {
 			goal.setCurrentStatus("running")
 
-			go func() {
-				goal.AddLineToTail("----------\n")
-				goal.AddLineToTail(fmt.Sprintf("Container with ID %q started\n", evt.ID))
-				rc, err := goal.DockerClient.ContainerLogs(context.Background(), evt.ID, types.ContainerLogsOptions{
-					ShowStdout: true,
-					ShowStderr: true,
-					Timestamps: true,
-					Follow:     true,
-					Details:    false,
-				})
-				if err != nil {
-					goal.AddLineToTail("Could not tail output: " + err.Error() + "\n")
-				}
-				br := bufio.NewReader(rc)
-				defer rc.Close()
-				for {
-					line, err := br.ReadString('\n')
-					if err != nil {
-						goal.AddLineToTail("output closed...\n")
-						return
-					}
-					goal.AddLineToTail(line[8:])
-				}
-			}()
+			go goal.startTailingLog()
+			go goal.startTrackingContainer()
 
 		}
 
@@ -414,7 +438,6 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		RunAfterStatuses:     map[string]string{},
 		LinksStatuses:        map[string]string{},
 		AuthConfig:           config.AuthConfig,
-		transitionLog:        []TransitionLogEntry{},
 		UpstreamGoalStatuses: map[string]string{},
 		SmartRestart:         config.SmartRestart,
 		containerConfig: &container.Config{
@@ -458,6 +481,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		},
 		networkingConfig: &network.NetworkingConfig{},
 		Emitter:          emitter,
+		tracker:          stats.NewTracker(120 * time.Second),
 	}
 
 	if config.Restart != "" {
@@ -611,14 +635,6 @@ func replaceRelativePath(pth string) string {
 	return pth
 }
 
-func (goal *Goal) GetTransitionLog() []TransitionLogEntry {
-	goal.Lock()
-	defer goal.Unlock()
-	log := make([]TransitionLogEntry, len(goal.transitionLog))
-	copy(log, goal.transitionLog)
-	return log
-}
-
 func (goal *Goal) FetchImage() {
 
 	goal.Lock()
@@ -690,7 +706,6 @@ func (goal *Goal) status() GoalStatus {
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
 		ExitCode: goal.ExitCode,
-		// Stats:    goal.stats,
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
@@ -87,19 +86,6 @@ func (a *Application) Inspect(goalName string) (types.ContainerJSON, error) {
 		return types.ContainerJSON{}, err
 	}
 	return goal.Inspect()
-}
-
-func (a *Application) TransitionLog(goalName string) ([]TransitionLogEntry, error) {
-	goal, err := a.goalByName(goalName)
-	if err != nil {
-		return nil, err
-	}
-	return goal.GetTransitionLog(), nil
-}
-
-func (a *Application) Stats(goalName string, since time.Time) (*Stats, error) {
-
-	return &Stats{}, nil
 }
 
 func (a *Application) startGoals() {

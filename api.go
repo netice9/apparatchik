@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -54,8 +53,6 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *client.Client
 	router.GET("/api/v1.0/applications", api.GetApplications)
 	router.GET("/api/v1.0/applications/:applicationName", api.GetApplication)
 
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/transition_log", api.GetGoalTransitionLog)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/stats", api.GetGoalStats)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
 
@@ -252,57 +249,6 @@ func (a *API) GetApplications(w http.ResponseWriter, r *http.Request, ps httprou
 		panic(err)
 	}
 
-}
-
-func (a *API) GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	applicationName := ps.ByName("applicationName")
-	goalName := ps.ByName("goalName")
-
-	transitionLog, err := a.apparatchick.GoalTransitionLog(applicationName, goalName)
-
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-
-	if transitionLog != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		if err := json.NewEncoder(w).Encode(transitionLog); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func (a *API) GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	applicationName := ps.ByName("applicationName")
-	goalName := ps.ByName("goalName")
-	sinceString := r.FormValue("since")
-
-	sinceTime, err := time.Parse(time.RFC3339Nano, sinceString)
-
-	if err != nil {
-		sinceTime = time.Time{}
-	}
-
-	application, err := a.apparatchick.ApplicationByName(applicationName)
-
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-
-	stats, err := application.Stats(goalName, sinceTime)
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	if err := json.NewEncoder(w).Encode(stats); err != nil {
-		panic(err)
-	}
 }
 
 func (a *API) GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
