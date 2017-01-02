@@ -8,14 +8,6 @@ type Entry struct {
 	Memory uint64
 }
 
-func (e Entry) Add(other Entry) Entry {
-	return Entry{
-		other.Time,
-		e.CPU + other.CPU,
-		e.Memory + other.Memory,
-	}
-}
-
 type Tracker struct {
 	duration time.Duration
 	entries  []Entry

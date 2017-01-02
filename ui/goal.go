@@ -2,11 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/draganm/go-reactor"
 	"github.com/netice9/apparatchik/core"
-	"github.com/netice9/apparatchik/util"
+	"github.com/netice9/apparatchik/core/stats"
 )
 
 func GoalFactory(ctx reactor.ScreenContext) reactor.Screen {
@@ -33,15 +35,17 @@ func GoalFactory(ctx reactor.ScreenContext) reactor.Screen {
 
 type Goal struct {
 	sync.Mutex
-	ctx  reactor.ScreenContext
-	goal *core.Goal
-	stat core.GoalStatus
-	tail string
+	ctx   reactor.ScreenContext
+	goal  *core.Goal
+	stat  core.GoalStatus
+	stats []stats.Entry
+	tail  string
 }
 
 func (g *Goal) Mount() {
 	g.goal.On("update", g.onGoalStatus)
 	g.goal.On("tail", g.onGoalTail)
+	g.goal.On("stats", g.onGoalStats)
 	g.stat = g.goal.Status()
 	g.tail = g.goal.Tail()
 	g.render()
@@ -52,18 +56,7 @@ func (g *Goal) OnUserEvent(evt *reactor.UserEvent) {
 }
 
 func (g *Goal) render() {
-	view := goalUI.DeepCopy()
-
-	cpuPoints, cpuMax := util.TimeSeriesToLine(g.stat.Stats.CpuStats, 400, 100, 1000000)
-	view.SetElementAttribute("cpu_line", "points", cpuPoints)
-	cpuPercentMax := float64(cpuMax) / 10000000
-
-	view.SetElementText("max_cpu", fmt.Sprintf("%.1f%%", cpuPercentMax))
-
-	memoryPoints, memoryMax := util.TimeSeriesToLine(g.stat.Stats.MemStats, 400, 100, 1024*1024)
-	memoryMBytes := memoryMax / (1024 * 1024)
-	view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
-	view.SetElementAttribute("memory_line", "points", memoryPoints)
+	view := renderGraph(g.stats)
 
 	view.SetElementText("out", g.tail)
 
@@ -76,12 +69,20 @@ func (g *Goal) render() {
 func (g *Goal) Unmount() {
 	g.goal.RemoveListener("update", g.onGoalStatus)
 	g.goal.RemoveListener("tail", g.onGoalTail)
+	g.goal.RemoveListener("stats", g.onGoalStats)
 }
 
 func (g *Goal) onGoalStatus(status core.GoalStatus) {
 	g.Lock()
 	defer g.Unlock()
 	g.stat = status
+	g.render()
+}
+
+func (g *Goal) onGoalStats(stats []stats.Entry) {
+	g.Lock()
+	defer g.Unlock()
+	g.stats = stats
 	g.render()
 }
 
@@ -99,10 +100,10 @@ var goalUI = reactor.MustParseDisplayModel(`
 				<g transform="translate(10,20)">
 					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
 					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
-					<polyline transform="translate(32,0)" id="cpu_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+					<polyline transform="translate(32,0)" id="cpuLine" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
 					<g fontSize="8px" fontFamily="Georgia" fill="#333">
 						<g textAnchor="end">
-							<text id="max_cpu" x="26" y="2">100 %</text>
+							<text id="maxCPU" x="26" y="2">100 %</text>
 							<text x="26" y="102">0 %</text>
 						</g>
 					</g>
@@ -112,12 +113,12 @@ var goalUI = reactor.MustParseDisplayModel(`
 		<bs.Panel id="goal_panel" header="Memory Stats">
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 130" width="100%" className="chart">
 				<g transform="translate(10,20)">
-				  <polyline transform="translate(32,0)" id="memory_line" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
+				  <polyline transform="translate(32,0)" id="memLine" fill="none" stroke="#0074d9" strokeWidth="1" points=""/>
 					<path d="M28 0h3M28 100h3M31 100v3" strokeWidth="1px" stroke="#333"/>
 					<path d="M31 0v100M31 100h400" strokeWidth="1px" stroke="#333"/>
 					<g fontSize="8px" fontFamily="Georgia" fill="#333">
 						<g textAnchor="end">
-							<text id="max_memory" x="26" y="2">100 MB</text>
+							<text id="maxMem" x="26" y="2">100 MB</text>
 							<text x="26" y="102">0 MB</text>
 						</g>
 					</g>
@@ -129,3 +130,71 @@ var goalUI = reactor.MustParseDisplayModel(`
 		</bs.Panel>
 	</div>
 `)
+
+type sample struct {
+	time  time.Time
+	value float64
+}
+
+func renderGraph(entries []stats.Entry) *reactor.DisplayModel {
+	cpuSamples := []sample{}
+	memSamples := []sample{}
+	for _, e := range entries {
+		cpuSamples = append(cpuSamples, sample{e.Time, float64(e.CPU) / 1e7})
+		memSamples = append(memSamples, sample{e.Time, float64(e.Memory) / (1024 * 1024)})
+	}
+
+	g := goalUI.DeepCopy()
+
+	cpuPoints, maxCPU := timeSeriesToLines(cpuSamples, 400, 100, 0.1)
+	g.SetElementAttribute("cpuLine", "points", cpuPoints)
+	g.SetElementText("maxCPU", fmt.Sprintf("%.1f%%", maxCPU))
+
+	memPoints, maxMem := timeSeriesToLines(memSamples, 400, 100, 4.0)
+	g.SetElementAttribute("memLine", "points", memPoints)
+	g.SetElementText("maxMem", fmt.Sprintf("%.1f MB", maxMem))
+	return g
+}
+
+func timeSeriesToLines(samples []sample, width, height int, lowestMax float64) (string, float64) {
+	if len(samples) == 0 {
+		return "", 0
+	}
+
+	minValue := float64(0)
+	maxValue := lowestMax
+	minTime := samples[0].time
+	maxTime := samples[0].time
+
+	for _, sample := range samples {
+		if minValue > sample.value {
+			minValue = sample.value
+		}
+		if maxValue < sample.value {
+			maxValue = sample.value
+		}
+		if minTime.After(sample.time) {
+			minTime = sample.time
+		}
+		if maxTime.Before(sample.time) {
+			maxTime = sample.time
+		}
+	}
+
+	points := []string{}
+
+	valueRange := maxValue - minValue
+
+	for _, sample := range samples {
+		normalisedTime := float64(sample.time.UnixNano()-minTime.UnixNano()) / float64((time.Second * 120).Nanoseconds())
+
+		scaledTime := int(normalisedTime * float64(width))
+
+		normalisedValue := 1.0 - (sample.value / valueRange)
+		scaledValue := int(normalisedValue * float64(height))
+		points = append(points, fmt.Sprintf("%d,%d", scaledTime, scaledValue))
+	}
+
+	return strings.Join(points, " "), maxValue
+
+}

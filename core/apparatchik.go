@@ -162,12 +162,3 @@ func (a *Apparatchik) ApplicationByName(name string) (*Application, error) {
 	}
 	return application, nil
 }
-
-func (ap *Apparatchik) GoalTransitionLog(applicationName, goalName string) ([]TransitionLogEntry, error) {
-	application, err := ap.ApplicationByName(applicationName)
-	if err != nil {
-		return nil, err
-	}
-
-	return application.TransitionLog(goalName)
-}

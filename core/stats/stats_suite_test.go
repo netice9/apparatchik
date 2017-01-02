@@ -3,7 +3,7 @@ package stats_test
 import (
 	"time"
 
-	"github.com/netice9/apparatchik/stats"
+	"github.com/netice9/apparatchik/core/stats"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
