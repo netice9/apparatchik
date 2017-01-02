@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/fsouza/go-dockerclient"
+	"github.com/docker/docker/client"
 	"github.com/netice9/apparatchik/core"
 	"gopkg.in/urfave/cli.v2"
 )
@@ -25,7 +25,7 @@ func main() {
 	}
 
 	app.Action = func(ctx *cli.Context) error {
-		dockerClient, err := docker.NewClientFromEnv()
+		dockerClient, err := client.NewEnvClient()
 		if err != nil {
 			log.Fatal(err)
 		}
