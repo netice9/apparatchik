@@ -1,44 +1,42 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"sync"
 
 	"github.com/draganm/emission"
-	"github.com/fsouza/go-dockerclient"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/client"
 )
 
 var ApparatchikInstance *Apparatchik
 
 type Apparatchik struct {
 	sync.Mutex
-	applications        map[string]*Application
-	dockerClient        *docker.Client
-	dockerEventsChannel chan *docker.APIEvents
+	applications map[string]*Application
+	dockerClient *client.Client
 	*emission.Emitter
 }
 
-func StartApparatchik(dockerClient *docker.Client) (*Apparatchik, error) {
+func StartApparatchik(dockerClient *client.Client) (*Apparatchik, error) {
 
-	dockerEventsChannel := make(chan *docker.APIEvents, 20)
-	err := dockerClient.AddEventListener(dockerEventsChannel)
-	if err != nil {
-		return nil, err
-	}
+	ch, _ := dockerClient.Events(context.Background(), types.EventsOptions{})
+
 	apparatchick := &Apparatchik{
-		applications:        map[string]*Application{},
-		dockerClient:        dockerClient,
-		dockerEventsChannel: dockerEventsChannel,
-		Emitter:             emission.NewEmitter(),
+		applications: map[string]*Application{},
+		dockerClient: dockerClient,
+		// dockerEventsChannel: dockerEventsChannel,
+		Emitter: emission.NewEmitter(),
 	}
 
 	apparatchick.Emitter.SetMaxListeners(MaxListeners)
 
-	// call HandleDockerEvent for every new docker event
-	// in a separate go-routine
 	go func() {
-		for evt := range dockerEventsChannel {
+		for evt := range ch {
 			apparatchick.HandleDockerEvent(evt)
 		}
 	}()
@@ -68,7 +66,7 @@ func (a *Apparatchik) Stop() {
 	a.applications = map[string]*Application{}
 }
 
-func (a *Apparatchik) HandleDockerEvent(evt *docker.APIEvents) {
+func (a *Apparatchik) HandleDockerEvent(evt events.Message) {
 	a.Lock()
 	defer a.Unlock()
 	for _, application := range a.applications {

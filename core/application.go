@@ -1,17 +1,19 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"io/ioutil"
 	"os"
 	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/client"
 	"github.com/draganm/emission"
-	"github.com/fsouza/go-dockerclient"
 )
 
 const MaxListeners = 500
@@ -29,7 +31,7 @@ type Application struct {
 	Goals               map[string]*Goal
 	MainGoal            string
 	ApplicationFileName string
-	DockerClient        *docker.Client
+	DockerClient        *client.Client
 	*emission.Emitter
 }
 
@@ -76,22 +78,13 @@ func (a *Application) goalByName(goalName string) (*Goal, error) {
 	return goal, nil
 }
 
-func (a *Application) Logs(goalName string, w io.Writer) error {
-	goal, err := a.goalByName(goalName)
-	if err != nil {
-		return err
-	}
-
-	return goal.Logs(w)
-}
-
-func (a *Application) Inspect(goalName string) (*docker.Container, error) {
+func (a *Application) Inspect(goalName string) (types.ContainerJSON, error) {
 	if a == nil {
-		return nil, ErrApplicationNotFound
+		return types.ContainerJSON{}, ErrApplicationNotFound
 	}
 	goal, err := a.goalByName(goalName)
 	if err != nil {
-		return nil, err
+		return types.ContainerJSON{}, err
 	}
 	return goal.Inspect()
 }
@@ -105,19 +98,8 @@ func (a *Application) TransitionLog(goalName string) ([]TransitionLogEntry, erro
 }
 
 func (a *Application) Stats(goalName string, since time.Time) (*Stats, error) {
-	goal, err := a.goalByName(goalName)
-	if err != nil {
-		return nil, err
-	}
-	return goal.Stats(since), nil
-}
 
-func (a *Application) CurrentStats(goalName string) (*docker.Stats, error) {
-	goal, err := a.goalByName(goalName)
-	if err != nil {
-		return nil, err
-	}
-	return goal.CurrentStats(), nil
+	return &Stats{}, nil
 }
 
 func (a *Application) startGoals() {
@@ -131,27 +113,24 @@ func (a *Application) startGoals() {
 }
 
 func NewApplicationWithDockerClientFromEnv(applicationName string, applicationConfiguration *ApplicationConfiguration) (*Application, error) {
-	dockerClient, err := docker.NewClientFromEnv()
+
+	dockerClient, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
 
-	dockerEventsChannel := make(chan *docker.APIEvents, 20)
-	err = dockerClient.AddEventListener(dockerEventsChannel)
-	if err != nil {
-		return nil, err
-	}
+	ch, _ := dockerClient.Events(context.Background(), types.EventsOptions{})
 
 	application := NewApplication(applicationName, applicationConfiguration, dockerClient)
 	go func() {
-		for evt := range dockerEventsChannel {
+		for evt := range ch {
 			application.HandleDockerEvent(evt)
 		}
 	}()
 	return application, nil
 }
 
-func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *docker.Client) *Application {
+func NewApplication(applicationName string, applicationConfiguration *ApplicationConfiguration, dockerClient *client.Client) *Application {
 
 	fileName := "/applications/" + applicationName + ".json"
 
@@ -206,7 +185,7 @@ func (a *Application) RequestGoalStart(name string) {
 
 }
 
-func (a *Application) HandleDockerEvent(evt *docker.APIEvents) {
+func (a *Application) HandleDockerEvent(evt events.Message) {
 	a.Lock()
 	defer a.Unlock()
 

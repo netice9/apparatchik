@@ -1,12 +1,12 @@
 package core
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/fsouza/go-dockerclient"
 )
 
 type ApplicationConfiguration struct {
@@ -14,6 +14,7 @@ type ApplicationConfiguration struct {
 	MainGoal string                        `json:"main_goal"`
 }
 
+// TODO { "identitytoken": "9cbaf023786cd7..." }
 type AuthConfiguration struct {
 	Username      string `json:"username,omitempty"`
 	Password      string `json:"password,omitempty"`
@@ -21,13 +22,12 @@ type AuthConfiguration struct {
 	ServerAddress string `json:"serveraddress,omitempty"`
 }
 
-func (a AuthConfiguration) toDockerAuthConfig() docker.AuthConfiguration {
-	return docker.AuthConfiguration{
-		Username:      a.Username,
-		Password:      a.Password,
-		Email:         a.Email,
-		ServerAddress: a.ServerAddress,
+func (a AuthConfiguration) toDockerAuthConfig() string {
+	data, err := json.Marshal(a)
+	if err != nil {
+		return ""
 	}
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 type GoalConfiguration struct {
@@ -68,7 +68,7 @@ type GoalConfiguration struct {
 	CpuShares     int64             `json:"cpu_shares,omitempty"`
 	CpuSet        string            `json:"cpuset,omitempty"`
 	ReadOnly      bool              `json:"read_only,omitempty"`
-	VolumeDrvier  string            `json:"volume_driver,omitempty"`
+	VolumeDriver  string            `json:"volume_driver,omitempty"`
 	AuthConfig    AuthConfiguration `json:"auth_config,omitempty"`
 	ContainerName string            `json:"container_name,omitempty"`
 	ExternalLinks []string          `json:"external_links,omitempty"`
