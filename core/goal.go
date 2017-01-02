@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -78,11 +79,31 @@ type Goal struct {
 	// lastSample *docker.Stats
 
 	*emission.Emitter
+
+	tail []string
 }
 
 type GoalEvent struct {
 	Name  string
 	Event string
+}
+
+func (g *Goal) Tail() string {
+	g.Lock()
+	defer g.Unlock()
+	return strings.Join(g.tail, "")
+}
+
+func (g *Goal) AddLineToTail(line string) {
+	g.Lock()
+	defer g.Unlock()
+
+	if len(g.tail) > 400 {
+		g.tail = g.tail[1:]
+	}
+
+	g.tail = append(g.tail, line)
+	g.Emit("tail", strings.Join(g.tail, ""))
 }
 
 func (goal *Goal) TerminateGoal() {
@@ -203,6 +224,32 @@ func (goal *Goal) handleDockerEvent(evt events.Message) {
 	if goal.ContainerId != nil && evt.ID == *goal.ContainerId {
 		if evt.Status == "start" {
 			goal.setCurrentStatus("running")
+
+			go func() {
+				goal.AddLineToTail("----------\n")
+				goal.AddLineToTail(fmt.Sprintf("Container with ID %q started\n", evt.ID))
+				rc, err := goal.DockerClient.ContainerLogs(context.Background(), evt.ID, types.ContainerLogsOptions{
+					ShowStdout: true,
+					ShowStderr: true,
+					Timestamps: true,
+					Follow:     true,
+					Details:    false,
+				})
+				if err != nil {
+					goal.AddLineToTail("Could not tail output: " + err.Error() + "\n")
+				}
+				br := bufio.NewReader(rc)
+				defer rc.Close()
+				for {
+					line, err := br.ReadString('\n')
+					if err != nil {
+						goal.AddLineToTail("output closed...\n")
+						return
+					}
+					goal.AddLineToTail(line[8:])
+				}
+			}()
+
 		}
 
 		if evt.Status == "die" {
@@ -310,22 +357,6 @@ func (goal *Goal) ContainerStarted() {
 
 	goal.Lock()
 	defer goal.Unlock()
-
-	// ch := make(chan *docker.Stats)
-
-	// go func() {
-	// 	go func() {
-	// 		for stat := range ch {
-	// 			goal.HandleStatsEvent(stat)
-	// 		}
-	// 	}()
-	//
-	// 	goal.DockerClient.Stats(docker.StatsOptions{
-	// 		ID:     *goal.ContainerId,
-	// 		Stats:  ch,
-	// 		Stream: true,
-	// 	})
-	// }()
 
 }
 

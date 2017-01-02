@@ -186,8 +186,6 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 
 	go func() {
 
-		conn.WriteMessage(websocket.TextMessage, []byte("connected\r\n"))
-
 		go func() {
 			defer func() {
 				conn.Close()
@@ -213,6 +211,7 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	}()
 
 	go func() {
+		conn.WriteMessage(websocket.TextMessage, []byte("connected\r\n"))
 
 		wr := WSReaderWriter{conn}
 		_, err2 := io.Copy(wr, hr.Reader)

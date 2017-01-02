@@ -33,16 +33,17 @@ func GoalFactory(ctx reactor.ScreenContext) reactor.Screen {
 
 type Goal struct {
 	sync.Mutex
-	ctx         reactor.ScreenContext
-	goal        *core.Goal
-	stat        core.GoalStatus
-	fromLine    int
-	containerID string
+	ctx  reactor.ScreenContext
+	goal *core.Goal
+	stat core.GoalStatus
+	tail string
 }
 
 func (g *Goal) Mount() {
 	g.goal.On("update", g.onGoalStatus)
+	g.goal.On("tail", g.onGoalTail)
 	g.stat = g.goal.Status()
+	g.tail = g.goal.Tail()
 	g.render()
 
 }
@@ -64,6 +65,8 @@ func (g *Goal) render() {
 	view.SetElementText("max_memory", fmt.Sprintf("%d MB", memoryMBytes))
 	view.SetElementAttribute("memory_line", "points", memoryPoints)
 
+	view.SetElementText("out", g.tail)
+
 	g.ctx.UpdateScreen(&reactor.DisplayUpdate{
 		Model: WithNavigation(view, [][]string{{"Applications", "#/"}, {g.goal.ApplicationName, fmt.Sprintf("#/apps/%s", g.goal.ApplicationName)}, {g.goal.Name, fmt.Sprintf("#/apps/%s/%s", g.goal.ApplicationName, g.goal.Name)}}),
 	})
@@ -72,12 +75,20 @@ func (g *Goal) render() {
 
 func (g *Goal) Unmount() {
 	g.goal.RemoveListener("update", g.onGoalStatus)
+	g.goal.RemoveListener("tail", g.onGoalTail)
 }
 
 func (g *Goal) onGoalStatus(status core.GoalStatus) {
 	g.Lock()
 	defer g.Unlock()
 	g.stat = status
+	g.render()
+}
+
+func (g *Goal) onGoalTail(tail string) {
+	g.Lock()
+	defer g.Unlock()
+	g.tail = tail
 	g.render()
 }
 
@@ -114,7 +125,7 @@ var goalUI = reactor.MustParseDisplayModel(`
 			</svg>
 	  </bs.Panel>
 		<bs.Panel id="output_panel" header="Output">
-			<pre id="out" reportEvents="wheel:PD:X-deltaY" />
+			<pre id="out" className="pre-scrollable" />
 		</bs.Panel>
 	</div>
 `)
