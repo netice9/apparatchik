@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,9 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"github.com/draganm/go-reactor"
 	"github.com/netice9/apparatchik/core"
 	"github.com/netice9/apparatchik/public"
@@ -15,7 +19,6 @@ import (
 	"github.com/urfave/negroni"
 
 	"github.com/djimenez/iconv-go"
-	"github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 )
@@ -26,7 +29,7 @@ type ErrorResponse struct {
 
 type API struct {
 	apparatchick *core.Apparatchik
-	dockerClient *docker.Client
+	dockerClient *client.Client
 }
 
 type negroniHTTPRouter struct {
@@ -38,7 +41,7 @@ func (router *negroniHTTPRouter) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	router.Router.ServeHTTP(w, r)
 }
 
-func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client, port int) error {
+func startHttpServer(apparatchick *core.Apparatchik, dockerClient *client.Client, port int) error {
 	api := &API{
 		apparatchick: apparatchick,
 		dockerClient: dockerClient,
@@ -51,10 +54,8 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *docker.Client
 	router.GET("/api/v1.0/applications", api.GetApplications)
 	router.GET("/api/v1.0/applications/:applicationName", api.GetApplication)
 
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/logs", api.GetGoalLogs)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/transition_log", api.GetGoalTransitionLog)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/stats", api.GetGoalStats)
-	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/current_stats", api.GetGoalCurrentStats)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
 
@@ -150,20 +151,32 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 		command = "/bin/sh"
 	}
 
-	exec, err := a.dockerClient.CreateExec(docker.CreateExecOptions{
+	exec, err := a.dockerClient.ContainerExecCreate(context.Background(), *containerID, types.ExecConfig{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true,
 		Cmd:          []string{command},
-		Container:    *containerID,
 	})
 
 	if err != nil {
 		panic(err)
 	}
 
-	stdinPipeReader, stdinPipeWriter := io.Pipe()
+	hr, err := a.dockerClient.ContainerExecAttach(context.Background(), exec.ID, types.ExecConfig{
+		Tty:          true,
+		AttachStdin:  true,
+		AttachStderr: true,
+		AttachStdout: true,
+		Detach:       false,
+		Cmd:          []string{command},
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	// stdinPipeReader, stdinPipeWriter := io.Pipe()
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 
@@ -178,7 +191,7 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 		go func() {
 			defer func() {
 				conn.Close()
-				stdinPipeWriter.Close()
+				hr.CloseWrite()
 			}()
 			for {
 				_, message, err := conn.ReadMessage()
@@ -187,7 +200,8 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 					log.Println("WS Copy", err)
 					return
 				}
-				_, err = stdinPipeWriter.Write(message)
+
+				_, err = hr.Conn.Write(message)
 				if err != nil {
 					log.Println("WS Copy", err)
 					return
@@ -198,15 +212,15 @@ func (a *API) ExecSocket(w http.ResponseWriter, r *http.Request, ps httprouter.P
 
 	}()
 
-	// TODO encapsulate into Apparatchik
-	a.dockerClient.StartExec(exec.ID, docker.StartExecOptions{
-		Detach:       false,
-		Tty:          true,
-		InputStream:  stdinPipeReader,
-		OutputStream: WSReaderWriter{conn},
-		ErrorStream:  WSReaderWriter{conn},
-		RawTerminal:  true,
-	})
+	go func() {
+
+		wr := WSReaderWriter{conn}
+		_, err2 := io.Copy(wr, hr.Reader)
+		if err2 != nil {
+			log.Error(err)
+		}
+
+	}()
 
 	if err != nil {
 		panic(err)
@@ -239,19 +253,6 @@ func (a *API) GetApplications(w http.ResponseWriter, r *http.Request, ps httprou
 		panic(err)
 	}
 
-}
-
-func (a *API) GetGoalLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	applicationName := ps.ByName("applicationName")
-	goalName := ps.ByName("goalName")
-	application, err := a.apparatchick.ApplicationByName(applicationName)
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(200)
-	application.Logs(goalName, w)
 }
 
 func (a *API) GetGoalTransitionLog(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -303,31 +304,6 @@ func (a *API) GetGoalStats(w http.ResponseWriter, r *http.Request, ps httprouter
 	if err := json.NewEncoder(w).Encode(stats); err != nil {
 		panic(err)
 	}
-}
-
-func (a *API) GetGoalCurrentStats(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	applicationName := ps.ByName("applicationName")
-	goalName := ps.ByName("goalName")
-
-	application, err := a.apparatchick.ApplicationByName(applicationName)
-
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-
-	stats, err := application.CurrentStats(goalName)
-	if err != nil {
-		respondWithError(err, w)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	if err := json.NewEncoder(w).Encode(stats); err != nil {
-		panic(err)
-	}
-
 }
 
 func (a *API) GetGoalInspect(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

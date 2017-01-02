@@ -1,9 +1,11 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -11,8 +13,13 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/draganm/emission"
-	"github.com/fsouza/go-dockerclient"
 )
 
 const trackerHistorySize = 120
@@ -45,7 +52,7 @@ type Goal struct {
 	application          *Application
 	Name                 string
 	ApplicationName      string
-	DockerClient         *docker.Client
+	DockerClient         *client.Client
 	CurrentStatus        string
 	Goals                map[string]*Goal
 	RunAfterStatuses     map[string]string
@@ -56,15 +63,19 @@ type Goal struct {
 	AuthConfig           AuthConfiguration
 	SmartRestart         bool
 
-	CreateContainerOptions docker.CreateContainerOptions
+	// CreateContainerOptions docker.CreateContainerOptions
+	containerName    string
+	containerConfig  *container.Config
+	hostConfig       *container.HostConfig
+	networkingConfig *network.NetworkingConfig
 
 	ContainerId *string
 	ExitCode    *int
 
 	transitionLog []TransitionLogEntry
 
-	stats      Stats
-	lastSample *docker.Stats
+	// stats Stats
+	// lastSample *docker.Stats
 
 	*emission.Emitter
 }
@@ -77,11 +88,10 @@ type GoalEvent struct {
 func (goal *Goal) TerminateGoal() {
 	if goal.ContainerId != nil {
 		containerID := *goal.ContainerId
-		goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
-			ID:            containerID,
-			RemoveVolumes: true,
-			Force:         true,
-		})
+		err := goal.DockerClient.ContainerRemove(context.Background(), containerID, types.ContainerRemoveOptions{RemoveVolumes: true, Force: true})
+		if err != nil {
+			log.Error(err)
+		}
 	}
 	goal.Emit("terminated")
 }
@@ -169,7 +179,7 @@ func (goal *Goal) canRun() bool {
 
 }
 
-func (goal *Goal) HandleDockerEvent(evt *docker.APIEvents) {
+func (goal *Goal) HandleDockerEvent(evt events.Message) {
 	goal.Lock()
 	defer goal.Unlock()
 	goal.handleDockerEvent(evt)
@@ -189,7 +199,7 @@ func (goal *Goal) SetExitCode(exitCode int) {
 	}
 
 }
-func (goal *Goal) handleDockerEvent(evt *docker.APIEvents) {
+func (goal *Goal) handleDockerEvent(evt events.Message) {
 	if goal.ContainerId != nil && evt.ID == *goal.ContainerId {
 		if evt.Status == "start" {
 			goal.setCurrentStatus("running")
@@ -198,7 +208,7 @@ func (goal *Goal) handleDockerEvent(evt *docker.APIEvents) {
 		if evt.Status == "die" {
 			containerID := *goal.ContainerId
 			go func() {
-				container, err := goal.DockerClient.InspectContainer(containerID)
+				container, err := goal.DockerClient.ContainerInspect(context.Background(), containerID)
 				if err != nil {
 					goal.SetCurrentStatus("error: " + err.Error())
 					return
@@ -220,8 +230,9 @@ func ContainsString(slice []string, val string) bool {
 	return false
 }
 
-func (goal *Goal) findContainerIdByName(name string) (*docker.APIContainers, error) {
-	containers, err := goal.DockerClient.ListContainers(docker.ListContainersOptions{All: true})
+func (goal *Goal) findContainerIdByName(name string) (*types.Container, error) {
+	// containers, err := goal.DockerClient.ListContainers(docker.ListContainersOptions{All: true})
+	containers, err := goal.DockerClient.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +255,7 @@ func containerName(applicationName string, goalName string, configName string) s
 func (goal *Goal) StopContainer() {
 	goal.SetCurrentStatus("stopping_container")
 	go func() {
-		err := goal.DockerClient.StopContainer(*goal.ContainerId, 0)
+		err := goal.DockerClient.ContainerStop(context.Background(), *goal.ContainerId, nil)
 		if err != nil {
 			goal.SetCurrentStatus("error: " + err.Error())
 		}
@@ -257,7 +268,7 @@ func (goal *Goal) startContainer() {
 
 	go func() {
 
-		existingContainer, err := goal.findContainerIdByName(goal.CreateContainerOptions.Name)
+		existingContainer, err := goal.findContainerIdByName(goal.containerName)
 
 		if err != nil {
 			goal.SetCurrentStatus("error: " + err.Error())
@@ -265,18 +276,14 @@ func (goal *Goal) startContainer() {
 		}
 
 		if existingContainer != nil {
-			err = goal.DockerClient.RemoveContainer(docker.RemoveContainerOptions{
-				ID:            existingContainer.ID,
-				RemoveVolumes: true,
-				Force:         true,
-			})
+			err = goal.DockerClient.ContainerRemove(context.Background(), existingContainer.ID, types.ContainerRemoveOptions{Force: true, RemoveVolumes: true})
 			if err != nil {
 				goal.SetCurrentStatus("error: " + err.Error())
 				return
 			}
 		}
 
-		container, err := goal.DockerClient.CreateContainer(goal.CreateContainerOptions)
+		container, err := goal.DockerClient.ContainerCreate(context.Background(), goal.containerConfig, goal.hostConfig, goal.networkingConfig, goal.containerName)
 
 		if err != nil {
 			goal.SetCurrentStatus("error: " + err.Error())
@@ -285,7 +292,8 @@ func (goal *Goal) startContainer() {
 
 		goal.SetContainerID(container.ID)
 
-		err = goal.DockerClient.StartContainer(container.ID, nil)
+		// err = goal.DockerClient.StartContainer(container.ID, nil)
+		err = goal.DockerClient.ContainerStart(context.Background(), container.ID, types.ContainerStartOptions{})
 
 		if err != nil {
 			goal.SetCurrentStatus("error: " + err.Error())
@@ -303,21 +311,21 @@ func (goal *Goal) ContainerStarted() {
 	goal.Lock()
 	defer goal.Unlock()
 
-	ch := make(chan *docker.Stats)
+	// ch := make(chan *docker.Stats)
 
-	go func() {
-		go func() {
-			for stat := range ch {
-				goal.HandleStatsEvent(stat)
-			}
-		}()
-
-		goal.DockerClient.Stats(docker.StatsOptions{
-			ID:     *goal.ContainerId,
-			Stats:  ch,
-			Stream: true,
-		})
-	}()
+	// go func() {
+	// 	go func() {
+	// 		for stat := range ch {
+	// 			goal.HandleStatsEvent(stat)
+	// 		}
+	// 	}()
+	//
+	// 	goal.DockerClient.Stats(docker.StatsOptions{
+	// 		ID:     *goal.ContainerId,
+	// 		Stats:  ch,
+	// 		Stream: true,
+	// 	})
+	// }()
 
 }
 
@@ -333,26 +341,14 @@ func (goal *Goal) GetContainerID() *string {
 	return goal.ContainerId
 }
 
-// TODO move up the stream - Application?, consider async
-func (goal *Goal) Logs(w io.Writer) error {
-	return goal.DockerClient.Logs(docker.LogsOptions{
-		Container:    *goal.GetContainerID(),
-		OutputStream: w,
-		ErrorStream:  w,
-		Stdout:       true,
-		Stderr:       true,
-		Tail:         "400",
-	})
-}
-
 // TODO move this down the chain - application level
-func (goal *Goal) Inspect() (*docker.Container, error) {
+func (goal *Goal) Inspect() (types.ContainerJSON, error) {
 	containerID := goal.GetContainerID()
 	if containerID != nil {
-		return goal.DockerClient.InspectContainer(*containerID)
+		// return goal.DockerClient.InspectContainer(*containerID)
+		return goal.DockerClient.ContainerInspect(context.Background(), *containerID)
 	}
-	return nil, errors.New("Conainer is not running")
-
+	return types.ContainerJSON{}, errors.New("Conainer is not running")
 }
 
 func ParseRepositoryTag(repos string) (string, string) {
@@ -371,7 +367,7 @@ func ParseRepositoryTag(repos string) (string, string) {
 	return repos, ""
 }
 
-func NewGoal(application *Application, goalName string, applicationName string, configs map[string]*GoalConfiguration, dockerClient *docker.Client) *Goal {
+func NewGoal(application *Application, goalName string, applicationName string, configs map[string]*GoalConfiguration, dockerClient *client.Client) *Goal {
 
 	config := configs[goalName]
 
@@ -390,50 +386,52 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		transitionLog:        []TransitionLogEntry{},
 		UpstreamGoalStatuses: map[string]string{},
 		SmartRestart:         config.SmartRestart,
-		CreateContainerOptions: docker.CreateContainerOptions{
-			Name: containerName(applicationName, goalName, config.ContainerName),
-			Config: &docker.Config{
-				Image:        config.Image,
-				Cmd:          config.Command,
-				ExposedPorts: map[docker.Port]struct{}{},
-				Env:          []string{},
-				Labels:       config.Labels,
-				WorkingDir:   config.WorkingDir,
-				Entrypoint:   config.Entrypoint,
-				User:         config.User,
-				Hostname:     config.Hostname,
-				Domainname:   config.Domainname,
-				MacAddress:   config.MacAddress,
-				OpenStdin:    config.StdinOpen,
-				Tty:          config.Tty,
-				VolumeDriver: config.VolumeDrvier,
-				AttachStdin:  config.AttachStdin,
-				AttachStdout: config.AttachStdout,
-				AttachStderr: config.AttachStderr,
-			},
-			HostConfig: &docker.HostConfig{
-				ExtraHosts:     config.ExtraHosts,
-				PortBindings:   map[docker.Port][]docker.PortBinding{},
-				Binds:          []string{},
-				CapAdd:         config.CapAdd,
-				CapDrop:        config.CapDrop,
-				DNSSearch:      config.DNSSearch,
-				Devices:        []docker.Device{},
-				SecurityOpt:    config.SecurityOpt,
-				Memory:         config.MemLimit,
-				MemorySwap:     config.MemSwapLimit,
-				Privileged:     config.Privileged,
-				CPUShares:      config.CpuShares,
-				CPUSetCPUs:     config.CpuSet,
-				CPUSetMEMs:     config.CpuSet,
-				ReadonlyRootfs: config.ReadOnly,
+		containerConfig: &container.Config{
+			Image:        config.Image,
+			Cmd:          config.Command,
+			ExposedPorts: map[nat.Port]struct{}{},
+			Env:          []string{},
+			Labels:       config.Labels,
+			WorkingDir:   config.WorkingDir,
+			Entrypoint:   config.Entrypoint,
+			User:         config.User,
+			Hostname:     config.Hostname,
+			Domainname:   config.Domainname,
+			MacAddress:   config.MacAddress,
+			OpenStdin:    config.StdinOpen,
+			Tty:          config.Tty,
+			// TODO this has changed!
+			// VolumeDriver: config.VolumeDriver,
+			AttachStdin:  config.AttachStdin,
+			AttachStdout: config.AttachStdout,
+			AttachStderr: config.AttachStderr,
+		},
+		hostConfig: &container.HostConfig{
+			ExtraHosts:     config.ExtraHosts,
+			PortBindings:   nat.PortMap{},
+			Binds:          []string{},
+			CapAdd:         config.CapAdd,
+			CapDrop:        config.CapDrop,
+			DNSSearch:      config.DNSSearch,
+			SecurityOpt:    config.SecurityOpt,
+			Privileged:     config.Privileged,
+			ReadonlyRootfs: config.ReadOnly,
+			Resources: container.Resources{
+				Devices:    []container.DeviceMapping{},
+				Memory:     config.MemLimit,
+				MemorySwap: config.MemSwapLimit,
+				CPUShares:  config.CpuShares,
+				CpusetCpus: config.CpuSet,
+				CpusetMems: config.CpuSet,
 			},
 		},
-		Emitter: emitter,
+		networkingConfig: &network.NetworkingConfig{},
+		Emitter:          emitter,
 	}
 
 	if config.Restart != "" {
-		goal.CreateContainerOptions.HostConfig.RestartPolicy = docker.RestartPolicy{Name: config.Restart}
+		// goal.hostConfig.RestartPolicy = docker.RestartPolicy{Name: config.Restart}
+		goal.hostConfig.RestartPolicy.Name = config.Restart
 	}
 
 	for _, deviceString := range config.Devices {
@@ -453,43 +451,44 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 			}
 		}
 
-		goal.CreateContainerOptions.HostConfig.Devices = append(goal.CreateContainerOptions.HostConfig.Devices, docker.Device{
+		goal.hostConfig.Devices = append(goal.hostConfig.Devices, container.DeviceMapping{
 			PathOnHost:        hostDevice,
 			PathInContainer:   containerDevice,
-			CgroupPermissions: perm})
+			CgroupPermissions: perm,
+		})
 	}
 
 	if len(config.Dns) != 0 {
-		goal.CreateContainerOptions.HostConfig.DNS = config.Dns
+		goal.hostConfig.DNS = config.Dns
 	}
 
 	if config.Net != "" {
-		goal.CreateContainerOptions.HostConfig.NetworkMode = config.Net
+		goal.hostConfig.NetworkMode = container.NetworkMode(config.Net)
 	}
 
 	if config.LogDriver != "" {
-		goal.CreateContainerOptions.HostConfig.LogConfig = docker.LogConfig{
+		goal.hostConfig.LogConfig = container.LogConfig{
 			Type:   config.LogDriver,
 			Config: config.LogConfig,
 		}
 	}
 
 	for k, v := range config.Environment {
-		goal.CreateContainerOptions.Config.Env = append(goal.CreateContainerOptions.Config.Env, k+"="+v)
+		goal.containerConfig.Env = append(goal.containerConfig.Env, k+"="+v)
 	}
 
 	for _, bind := range config.Volumes {
 		parts := strings.Split(bind, ":")
 		if len(parts) == 1 {
-			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]))
+			goal.hostConfig.Binds = append(goal.hostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]))
 		} else if len(parts) == 2 {
 			if parts[1] == "rw" || parts[1] == "ro" {
-				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]+":"+parts[1]))
+				goal.hostConfig.Binds = append(goal.hostConfig.Binds, replaceRelativePath(parts[0]+":"+parts[0]+":"+parts[1]))
 			} else {
-				goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(bind))
+				goal.hostConfig.Binds = append(goal.hostConfig.Binds, replaceRelativePath(bind))
 			}
 		} else {
-			goal.CreateContainerOptions.HostConfig.Binds = append(goal.CreateContainerOptions.HostConfig.Binds, replaceRelativePath(bind))
+			goal.hostConfig.Binds = append(goal.hostConfig.Binds, replaceRelativePath(bind))
 		}
 
 	}
@@ -507,7 +506,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		}
 		goal.LinksStatuses[name] = "unknown"
 
-		goal.CreateContainerOptions.HostConfig.Links = append(goal.CreateContainerOptions.HostConfig.Links, containerName(applicationName, name, configs[name].ContainerName)+":"+alias)
+		goal.hostConfig.Links = append(goal.hostConfig.Links, containerName(applicationName, name, configs[name].ContainerName)+":"+alias)
 
 	}
 
@@ -519,7 +518,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 			alias = parts[1]
 		}
 
-		goal.CreateContainerOptions.HostConfig.Links = append(goal.CreateContainerOptions.HostConfig.Links, name+":"+alias)
+		goal.hostConfig.Links = append(goal.hostConfig.Links, name+":"+alias)
 
 	}
 
@@ -541,10 +540,10 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 		if len(parts) == 2 {
 			hostPort = parts[0]
 			containerPort = parts[1]
-			portBinding := docker.PortBinding{HostPort: hostPort}
-			goal.CreateContainerOptions.HostConfig.PortBindings[docker.Port(containerPort+"/"+proto)] = []docker.PortBinding{portBinding}
+			portBinding := nat.PortBinding{HostPort: hostPort}
+			goal.hostConfig.PortBindings[nat.Port(containerPort+"/"+proto)] = []nat.PortBinding{portBinding}
 		} else {
-			goal.CreateContainerOptions.HostConfig.PortBindings[docker.Port(containerPort+"/"+proto)] = []docker.PortBinding{}
+			goal.hostConfig.PortBindings[nat.Port(containerPort+"/"+proto)] = []nat.PortBinding{}
 		}
 
 	}
@@ -558,7 +557,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 			proto = protoParts[1]
 		}
 
-		goal.CreateContainerOptions.Config.ExposedPorts[docker.Port(protoParts[0]+"/"+proto)] = struct{}{}
+		goal.containerConfig.ExposedPorts[nat.Port(protoParts[0]+"/"+proto)] = struct{}{}
 
 	}
 
@@ -589,33 +588,17 @@ func (goal *Goal) GetTransitionLog() []TransitionLogEntry {
 	return log
 }
 
-func (goal *Goal) CurrentStats() *docker.Stats {
-	goal.Lock()
-	defer goal.Unlock()
-	return goal.lastSample
-}
-
-func (goal *Goal) Stats(since time.Time) *Stats {
-	goal.Lock()
-	defer goal.Unlock()
-	return &Stats{
-		CpuStats: LimitSampleByTime(goal.stats.CpuStats, since),
-		MemStats: LimitSampleByTime(goal.stats.MemStats, since),
-	}
-}
-
 func (goal *Goal) FetchImage() {
 
 	goal.Lock()
 	defer goal.Unlock()
 
-	repo, tag := ParseRepositoryTag(goal.CreateContainerOptions.Config.Image)
-
 	go func() {
 
-		_, err := goal.DockerClient.InspectImage(goal.CreateContainerOptions.Config.Image)
+		_, _, err := goal.DockerClient.ImageInspectWithRaw(context.Background(), goal.containerConfig.Image)
 
-		if err != nil && err != docker.ErrNoSuchImage {
+		if err != nil && !client.IsErrImageNotFound(err) {
+			log.Error(err)
 			goal.FetchImageFailed(err.Error())
 			return
 		}
@@ -625,12 +608,22 @@ func (goal *Goal) FetchImage() {
 			return
 		}
 
-		opts := docker.PullImageOptions{
-			Repository: repo,
-			Tag:        tag,
+		r, err := goal.DockerClient.ImagePull(context.Background(), goal.containerConfig.Image, types.ImagePullOptions{
+			RegistryAuth: goal.AuthConfig.toDockerAuthConfig(),
+		})
+
+		if err != nil {
+			goal.FetchImageFailed(err.Error())
+			return
 		}
 
-		err = goal.DockerClient.PullImage(opts, goal.AuthConfig.toDockerAuthConfig())
+		_, err = io.Copy(ioutil.Discard, r)
+		if err != nil {
+			goal.FetchImageFailed(err.Error())
+			return
+		}
+
+		r.Close()
 
 		if err != nil {
 			goal.FetchImageFailed(err.Error())
@@ -666,7 +659,7 @@ func (goal *Goal) status() GoalStatus {
 		Name:     goal.Name,
 		Status:   goal.CurrentStatus,
 		ExitCode: goal.ExitCode,
-		Stats:    goal.stats,
+		// Stats:    goal.stats,
 	}
 }
 
@@ -701,41 +694,4 @@ func (goal *Goal) Start() {
 		}
 	}
 
-}
-
-func (goal *Goal) HandleStatsEvent(stats *docker.Stats) {
-
-	goal.Lock()
-	defer goal.Unlock()
-
-	if goal.lastSample == nil {
-		goal.lastSample = stats
-	} else {
-		cpuDiff := stats.CPUStats.CPUUsage.TotalUsage - goal.lastSample.CPUStats.CPUUsage.TotalUsage
-		memory := stats.MemoryStats.Usage
-
-		goal.stats.CpuStats = append(goal.stats.CpuStats, Sample{Value: cpuDiff, Time: stats.Read})
-		if len(goal.stats.CpuStats) > trackerHistorySize {
-			goal.stats.CpuStats = goal.stats.CpuStats[1:]
-		}
-
-		goal.stats.MemStats = append(goal.stats.MemStats, Sample{Value: memory, Time: stats.Read})
-		if len(goal.stats.MemStats) > trackerHistorySize {
-			goal.stats.MemStats = goal.stats.MemStats[1:]
-		}
-		goal.lastSample = stats
-	}
-
-	goal.broadcastStatus()
-
-}
-
-func LimitSampleByTime(samples []Sample, since time.Time) []Sample {
-	result := []Sample{}
-	for _, sample := range samples {
-		if sample.Time.After(since) {
-			result = append(result, sample)
-		}
-	}
-	return result
 }
