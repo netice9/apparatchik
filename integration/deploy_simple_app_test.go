@@ -77,7 +77,7 @@ var _ = Describe("DeploySimpleApp", func() {
 							Expect(err).ToNot(HaveOccurred())
 							return url
 						}
-						Eventually(getURL).Should(Equal("http://localhost:12080/#/"))
+						Eventually(getURL, 2.0).Should(Equal("http://localhost:12080/#/"))
 					})
 
 					Context("When it is ack to the index page", func() {

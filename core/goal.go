@@ -616,6 +616,11 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 
 	}
 
+	goal.containerName = fmt.Sprintf("ap_%s_%s", applicationName, goalName)
+	if config.ContainerName != "" {
+		goal.containerName = config.ContainerName
+	}
+
 	goal.FetchImage()
 
 	goal.broadcastStatus()
