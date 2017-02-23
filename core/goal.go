@@ -647,18 +647,18 @@ func (goal *Goal) FetchImage() {
 
 	go func() {
 
-		_, _, err := goal.DockerClient.ImageInspectWithRaw(context.Background(), goal.containerConfig.Image)
-
-		if err != nil && !client.IsErrImageNotFound(err) {
-			log.Error(err)
-			goal.FetchImageFailed(err.Error())
-			return
-		}
-
-		if err == nil {
-			goal.FetchImageFinished()
-			return
-		}
+		// _, _, err := goal.DockerClient.ImageInspectWithRaw(context.Background(), goal.containerConfig.Image)
+		//
+		// if err != nil && !client.IsErrImageNotFound(err) {
+		// 	log.Error(err)
+		// 	goal.FetchImageFailed(err.Error())
+		// 	return
+		// }
+		//
+		// if err == nil {
+		// 	goal.FetchImageFinished()
+		// 	return
+		// }
 
 		r, err := goal.DockerClient.ImagePull(context.Background(), goal.containerConfig.Image, types.ImagePullOptions{
 			RegistryAuth: goal.AuthConfig.toDockerAuthConfig(),
@@ -675,7 +675,7 @@ func (goal *Goal) FetchImage() {
 			return
 		}
 
-		r.Close()
+		err = r.Close()
 
 		if err != nil {
 			goal.FetchImageFailed(err.Error())
