@@ -116,7 +116,7 @@ func (a *Application) render() {
 
 func (a *Application) Unmount() {
 	a.app.RemoveListener("update", a.onUpdate)
-	a.app.RemoveListener("terminated", a.onUpdate)
+	a.app.RemoveListener("terminated", a.onTerminated)
 }
 
 var goalRowUI = reactor.MustParseDisplayModel(`
