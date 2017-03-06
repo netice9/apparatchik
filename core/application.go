@@ -51,7 +51,14 @@ func (a *Application) GoalStatusUpdate(goalName, status string) {
 
 func (a *Application) Status() ApplicationStatus {
 	a.Lock()
-	defer a.Unlock()
+
+	goals := make([]*Goal, 0)
+
+	for _, goal := range a.Goals {
+		goals = append(goals, goal)
+	}
+
+	a.Unlock()
 
 	goalStats := map[string]GoalStatus{}
 
