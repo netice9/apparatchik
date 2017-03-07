@@ -46,7 +46,7 @@ func (a *Application) GoalStatusUpdate(goalName, status string) {
 			goal.SiblingStatusUpdate(goalName, status)
 		}
 	}
-	a.Emitter.Emit("update", a.Status())
+	a.Emitter.EmitAsync("update", a.Status())
 }
 
 func (a *Application) Status() ApplicationStatus {
@@ -150,7 +150,7 @@ func NewApplication(applicationName string, applicationConfiguration *Applicatio
 
 	app.startGoals()
 
-	app.Emit("update", app.Status())
+	app.EmitAsync("update", app.Status())
 
 	return app
 
@@ -165,7 +165,7 @@ func (a *Application) TerminateApplication() {
 		goal.TerminateGoal()
 	}
 
-	a.Emit("terminated")
+	a.EmitAsync("terminated")
 }
 
 func (a *Application) RequestGoalStart(name string) {

@@ -41,7 +41,7 @@ func StartApparatchik(dockerClient *client.Client) (*Apparatchik, error) {
 		}
 	}()
 
-	apparatchick.Emitter.Emit("applications", apparatchick.applicatioNames())
+	apparatchick.Emitter.EmitAsync("applications", apparatchick.applicatioNames())
 
 	return apparatchick, nil
 
@@ -110,7 +110,7 @@ func (a *Apparatchik) NewApplication(name string, config *ApplicationConfigurati
 	application := NewApplication(name, config, a.dockerClient)
 	a.applications[name] = application
 
-	a.Emit("applications", a.applicatioNames())
+	a.EmitAsync("applications", a.applicatioNames())
 
 	return application.Status(), nil
 }
@@ -132,7 +132,7 @@ func (a *Apparatchik) TerminateApplication(applicationName string) error {
 
 	application.TerminateApplication()
 
-	a.Emit("applications", a.applicatioNames())
+	a.EmitAsync("applications", a.applicatioNames())
 
 	return nil
 }

@@ -88,7 +88,7 @@ func (g *Goal) AddLineToTail(line string) {
 	}
 
 	g.tail = append(g.tail, line)
-	g.Emit("tail", strings.Join(g.tail, ""))
+	g.EmitAsync("tail", strings.Join(g.tail, ""))
 }
 
 func (goal *Goal) TerminateGoal() {
@@ -99,7 +99,7 @@ func (goal *Goal) TerminateGoal() {
 			log.Error(err)
 		}
 	}
-	goal.Emit("terminated")
+	goal.EmitAsync("terminated")
 }
 
 func (goal *Goal) SetCurrentStatus(status string) {
@@ -263,7 +263,7 @@ func (goal *Goal) AddStats(st types.StatsJSON) {
 		CPU:    st.CPUStats.CPUUsage.TotalUsage - st.PreCPUStats.CPUUsage.TotalUsage,
 		Memory: st.MemoryStats.Usage,
 	})
-	goal.Emit("stats", goal.tracker.Entries())
+	goal.EmitAsync("stats", goal.tracker.Entries())
 }
 
 func (goal *Goal) handleDockerEvent(evt events.Message) {
@@ -629,7 +629,7 @@ func NewGoal(application *Application, goalName string, applicationName string, 
 }
 
 func (g *Goal) broadcastStatus() {
-	g.Emitter.Emit("update", g.status())
+	g.Emitter.EmitAsync("update", g.status())
 }
 
 func replaceRelativePath(pth string) string {
