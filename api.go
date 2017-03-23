@@ -40,6 +40,15 @@ func (router *negroniHTTPRouter) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	router.Router.ServeHTTP(w, r)
 }
 
+func healthckeckMiddleware(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	if r.URL.Path == "/_ping" && r.Method == "GET" {
+		rw.Header().Set("Content-Type", "text/plain")
+		rw.Write([]byte("OK"))
+		return
+	}
+	next(rw, r)
+}
+
 func startHttpServer(apparatchick *core.Apparatchik, dockerClient *client.Client, port int) error {
 	api := &API{
 		apparatchick: apparatchick,
@@ -56,7 +65,7 @@ func startHttpServer(apparatchick *core.Apparatchik, dockerClient *client.Client
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/inspect", api.GetGoalInspect)
 	router.GET("/api/v1.0/applications/:applicationName/goals/:goalName/exec", api.ExecSocket)
 
-	reactor := reactor.New(NewAuthHandler(), negroni.NewStatic(public.AssetFS()), &negroniHTTPRouter{router})
+	reactor := reactor.New(negroni.HandlerFunc(healthckeckMiddleware), NewAuthHandler(), negroni.NewStatic(public.AssetFS()), &negroniHTTPRouter{router})
 
 	err := reactor.AddScreen("/", ui.IndexFactory)
 	if err != nil {
