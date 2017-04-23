@@ -13,7 +13,7 @@ type AddApplication struct {
 	config   *core.ApplicationConfiguration
 	appName  string
 	alert    error
-	location *string
+	location string
 }
 
 func AddApplicationFactory(ctx reactor.ScreenContext) reactor.Screen {
@@ -58,8 +58,7 @@ func (aa *AddApplication) OnUserEvent(evt *reactor.UserEvent) {
 		if err != nil {
 			aa.alert = err
 		} else {
-			newLoc := "#/"
-			aa.location = &newLoc
+			aa.location = "#/"
 		}
 		aa.render()
 	}

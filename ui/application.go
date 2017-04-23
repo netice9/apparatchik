@@ -71,9 +71,8 @@ func (a *Application) onUpdate(status core.ApplicationStatus) {
 }
 
 func (a *Application) onTerminated() {
-	location := "#/"
 	a.ctx.UpdateScreen(&reactor.DisplayUpdate{
-		Location: &location,
+		Location: "#/",
 	})
 }
 
