@@ -429,12 +429,6 @@
 			"revisionTime": "2017-01-31T01:35:07Z"
 		},
 		{
-			"checksumSHA1": "MA07KaAp1aPVheuopyrFr7pxANs=",
-			"path": "github.com/opencontainers/runc/libcontainer/user",
-			"revision": "e62817fefcb66450ecf1e404b6b232bfd89cf550",
-			"revisionTime": "2017-04-22T00:33:05Z"
-		},
-		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
 			"path": "github.com/pkg/errors",
 			"revision": "ff09b135c25aae272398c51a07235b90a75aa4f0",
