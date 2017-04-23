@@ -94,7 +94,11 @@ func (a *Application) render() {
 		row := goalRowUI.DeepCopy()
 		row.SetElementText("goal_name", name)
 		row.SetElementAttribute("goal_name", "href", fmt.Sprintf("#/apps/%s/%s", a.app.Name, goal.Name))
-		row.SetElementAttribute("goal_term_link", "href", fmt.Sprintf("#/apps/%s/%s/xterm", a.app.Name, goal.Name))
+		if goal.Status == "running" {
+			row.SetElementAttribute("goal_term_link", "href", fmt.Sprintf("#/apps/%s/%s/xterm", a.app.Name, goal.Name))
+		} else {
+			row.SetElementAttribute("goal_term_link", "disabled", true)
+		}
 		row.SetElementText("goal_state", goal.Status)
 		view.AppendChild("goal_table_body", row)
 	}
@@ -123,7 +127,9 @@ var goalRowUI = reactor.MustParseDisplayModel(`
     <td ><a id="goal_name" href="#" className="btn btn-default"/></td>
     <td id="goal_state" />
     <td id="goal_actions">
-			<a id="goal_term_link" href="#" className="btn btn-default">XTerm</a>
+			<bs.ButtonToolbar>
+				<bs.Button id="goal_term_link">XTerm</bs.Button>
+			</bs.ButtonToolbar>
 		</td>
   </tr>
 `)
