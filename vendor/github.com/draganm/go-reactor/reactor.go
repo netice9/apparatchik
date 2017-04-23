@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
@@ -61,7 +62,7 @@ func (r *Reactor) Serve(bind string) {
 	n := negroni.New(handlers...)
 
 	router := httprouter.New()
-	router.HandlerFunc("GET", "/ws", NewReactorHandler(func(uc chan *DisplayUpdate, ue chan *UserEvent, req *http.Request, id string) http.Header {
+	router.HandlerFunc("GET", "/ws", newReactorHandler(func(uc chan *DisplayUpdate, ue chan *UserEvent, req *http.Request, id string) http.Header {
 
 		go func() {
 
@@ -75,14 +76,12 @@ func (r *Reactor) Serve(bind string) {
 				// TODO lock etc.
 
 				screenFactory, params := r.findScreenFactoryForPath(path)
-
+				updater := NewrateLimitedScreenUpdater(200*time.Millisecond, func(upd *DisplayUpdate) { uc <- upd })
 				ctx := ScreenContext{
 					Path:         path,
 					ConnectionID: id,
 					Params:       params,
-					UpdateScreen: func(upd *DisplayUpdate) {
-						uc <- upd
-					},
+					UpdateScreen: newRemoveDuplicatesScreenUpdater(updater.update),
 				}
 
 				currentScreen := screenFactory(ctx)
@@ -97,19 +96,26 @@ func (r *Reactor) Serve(bind string) {
 							if newPath != path {
 								path = newPath
 								currentScreen.Unmount()
+								updater.close()
 								continue mainLoop
 							}
 						}
 						currentScreen.OnUserEvent(evt)
 					}
 					currentScreen.Unmount()
+					updater.close()
 					return
 				}
 
 			}
 		}()
 
-		return nil
+		header := http.Header{}
+
+		c := http.Cookie{Name: "BR", Value: "true"}
+		header.Add("Set-Cookie", c.String())
+
+		return header
 	}))
 	n.UseHandler(router)
 	n.Run(bind)

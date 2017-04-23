@@ -22,7 +22,7 @@ func PhantomJS(options ...Option) *WebDriver {
 	command := []string{"phantomjs", "--webdriver={{.Address}}"}
 	defaultOptions := config{}.Merge(options)
 	if !defaultOptions.RejectInvalidSSL {
-		command = append(command, "--ignore-ssl-errors=true", "--webdriver-logfile=/tmp/wblog")
+		command = append(command, "--ignore-ssl-errors=true")
 	}
 	return NewWebDriver("http://{{.Address}}", command, options...)
 }
