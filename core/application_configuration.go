@@ -6,12 +6,51 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 )
 
 type ApplicationConfiguration struct {
 	Goals    map[string]*GoalConfiguration `json:"goals"`
 	MainGoal string                        `json:"main_goal"`
+}
+
+func (a *ApplicationConfiguration) findCircularDependency(goalName string, seen ...string) error {
+
+	gc, found := a.Goals[goalName]
+
+	if !found {
+		return fmt.Errorf("Goal %q does not exist", goalName)
+	}
+
+	for _, d := range gc.dependsOn() {
+		for _, s := range seen {
+			if s == d {
+				return fmt.Errorf("Goal %q has a circular dependency %q.", s, goalName)
+			}
+		}
+	}
+
+	seen = append(seen, gc.dependsOn()...)
+
+	for _, d := range gc.dependsOn() {
+		err := a.findCircularDependency(d, seen...)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *ApplicationConfiguration) validateCircularDependencies() error {
+	for g := range a.Goals {
+		err := a.findCircularDependency(g, g)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // TODO { "identitytoken": "9cbaf023786cd7..." }
@@ -75,6 +114,28 @@ type GoalConfiguration struct {
 	SmartRestart  bool              `json:"smart_restart,omitempty"`
 }
 
+func (gc *GoalConfiguration) dependsOn() []string {
+	depsMap := map[string]struct{}{}
+
+	for _, lc := range gc.LinkedContainers() {
+		depsMap[lc.Name] = struct{}{}
+	}
+
+	for _, ra := range gc.RunAfter {
+		depsMap[ra] = struct{}{}
+	}
+
+	deps := []string{}
+
+	for k := range depsMap {
+		deps = append(deps, k)
+	}
+
+	sort.Strings(deps)
+
+	return deps
+}
+
 func (gc *GoalConfiguration) Clone() *GoalConfiguration {
 	copy := *gc
 	return &copy
@@ -103,10 +164,10 @@ func (gc *GoalConfiguration) LinkedContainers() []LinkedContainer {
 
 }
 
-func (config *ApplicationConfiguration) Clone() *ApplicationConfiguration {
-	clone := *config
+func (c *ApplicationConfiguration) Clone() *ApplicationConfiguration {
+	clone := *c
 	clone.Goals = map[string]*GoalConfiguration{}
-	for goalName, goal := range config.Goals {
+	for goalName, goal := range c.Goals {
 
 		clone.Goals[goalName] = goal.Clone()
 	}
@@ -117,33 +178,39 @@ var goalNameExpression = regexp.MustCompile("^[0-9a-zA-Z_\\.\\-]+$")
 
 var imageExpression = regexp.MustCompile("^[0-9a-zA-Z\\.\\-/:_]+:[0-9a-zA-Z\\.\\-_]+$")
 
-func (config *ApplicationConfiguration) Validate() error {
-	if config.MainGoal == "" {
+func (c *ApplicationConfiguration) Validate() error {
+	if c.MainGoal == "" {
 		return errors.New("Main goal is not set")
 	}
-	if _, ok := config.Goals[config.MainGoal]; !ok {
-		return errors.New(fmt.Sprintf("Main goal '%s' is not defined", config.MainGoal))
+	if _, ok := c.Goals[c.MainGoal]; !ok {
+		return fmt.Errorf("Main goal %q is not defined", c.MainGoal)
 	}
-	for name, goal := range config.Goals {
+	for name, goal := range c.Goals {
 		if !goalNameExpression.MatchString(name) {
-			return errors.New(fmt.Sprintf("Goal '%s' has invalid name", name))
+			return fmt.Errorf("Goal %q has invalid name", name)
 		}
 		if !imageExpression.MatchString(goal.Image) {
-			return errors.New(fmt.Sprintf("Goal '%s' has invalid image name", name))
+			return fmt.Errorf("Goal %q has invalid image name", name)
 		}
 
 		for _, runAfter := range goal.RunAfter {
-			if _, ok := config.Goals[runAfter]; !ok {
-				return errors.New(fmt.Sprintf("Goal '%s' should run after goal '%s' that does not exist", name, runAfter))
+			if _, ok := c.Goals[runAfter]; !ok {
+				return fmt.Errorf("Goal %q should run after goal %q that does not exist", name, runAfter)
 			}
 		}
 
 		// Goal 'test' links goal 'test2' that does not exist
 		for _, linkedContainer := range goal.LinkedContainers() {
-			if _, ok := config.Goals[linkedContainer.Name]; !ok {
-				return errors.New(fmt.Sprintf("Goal '%s' links goal '%s' that does not exist", name, linkedContainer.Name))
+			if _, ok := c.Goals[linkedContainer.Name]; !ok {
+				return fmt.Errorf("Goal %q links goal %q that does not exist", name, linkedContainer.Name)
 			}
 		}
 	}
+
+	err := c.validateCircularDependencies()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

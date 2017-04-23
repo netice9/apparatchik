@@ -12,6 +12,9 @@ var validConfiguration = &ApplicationConfiguration{
 		"test": &GoalConfiguration{
 			Image: "alpine:3.2",
 		},
+		"otherTest": &GoalConfiguration{
+			Image: "alpine:3.2",
+		},
 	},
 	MainGoal: "test",
 }
@@ -31,14 +34,14 @@ func TestApplicationConfigurationChecksMainGoalNotExisting(t *testing.T) {
 	copy := validConfiguration.Clone()
 	copy.MainGoal = "wrong"
 	require.NotNil(t, copy.Validate())
-	require.Equal(t, "Main goal 'wrong' is not defined", copy.Validate().Error())
+	require.Equal(t, "Main goal \"wrong\" is not defined", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksGoalNameNotValid(t *testing.T) {
 	copy := validConfiguration.Clone()
 	copy.Goals["this+|s|invalid"] = &GoalConfiguration{}
 	require.NotNil(t, copy.Validate())
-	require.Equal(t, "Goal 'this+|s|invalid' has invalid name", copy.Validate().Error())
+	require.Equal(t, "Goal \"this+|s|invalid\" has invalid name", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksValidGoalImageName(t *testing.T) {
@@ -46,7 +49,7 @@ func TestApplicationConfigurationChecksValidGoalImageName(t *testing.T) {
 	goal := copy.Goals["test"]
 	goal.Image = "!"
 	require.NotNil(t, copy.Validate())
-	require.Equal(t, "Goal 'test' has invalid image name", copy.Validate().Error())
+	require.Equal(t, "Goal \"test\" has invalid image name", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksRunAfterGoalsExisting(t *testing.T) {
@@ -55,7 +58,7 @@ func TestApplicationConfigurationChecksRunAfterGoalsExisting(t *testing.T) {
 
 	goal.RunAfter = []string{"test2"}
 	require.NotNil(t, copy.Validate())
-	require.Equal(t, "Goal 'test' should run after goal 'test2' that does not exist", copy.Validate().Error())
+	require.Equal(t, "Goal \"test\" should run after goal \"test2\" that does not exist", copy.Validate().Error())
 }
 
 func TestApplicationConfigurationChecksLinkedGoalsExisting(t *testing.T) {
@@ -64,7 +67,17 @@ func TestApplicationConfigurationChecksLinkedGoalsExisting(t *testing.T) {
 
 	goal.Links = []string{"test2"}
 	require.NotNil(t, copy.Validate())
-	require.Equal(t, "Goal 'test' links goal 'test2' that does not exist", copy.Validate().Error())
+	require.Equal(t, "Goal \"test\" links goal \"test2\" that does not exist", copy.Validate().Error())
+}
+
+func TestApplicationConfigurationWithCircularRunAfterDependency(t *testing.T) {
+	copy := validConfiguration.Clone()
+	goal := copy.Goals["otherTest"]
+
+	goal.RunAfter = []string{"otherTest"}
+
+	require.NotNil(t, copy.Validate())
+	require.Equal(t, "Goal \"otherTest\" has a circular dependency \"otherTest\".", copy.Validate().Error())
 }
 
 func TestLinkedContainers(t *testing.T) {
