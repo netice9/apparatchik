@@ -1,4 +1,4 @@
-FROM golang:1.7.3
+FROM golang:1.8.1
 
 RUN mkdir -p /go/src/github.com/netice9/apparatchik
 WORKDIR /go/src/github.com/netice9/apparatchik

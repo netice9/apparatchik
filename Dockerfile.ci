@@ -1,4 +1,4 @@
-FROM golang:1.7.3
+FROM golang:1.8.1
 
 # this is needed for Integration Tests
 RUN apt-get -y update && apt-get -y install libfontconfig
