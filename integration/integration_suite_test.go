@@ -27,7 +27,7 @@ var agoutiDriver *agouti.WebDriver
 
 var _ = BeforeSuite(func(done Done) {
 
-	agoutiDriver = agouti.PhantomJS()
+	agoutiDriver = agouti.ChromeDriver()
 	Expect(agoutiDriver.Start()).To(Succeed())
 	Expect(buildApparatchik()).To(Succeed())
 	startApparatchik()

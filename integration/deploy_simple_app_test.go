@@ -15,11 +15,23 @@ var _ = Describe("DeploySimpleApp", func() {
 
 	BeforeEach(func() {
 		var err error
-		page, err = agoutiDriver.NewPage()
+		page, err = agoutiDriver.NewPage(agouti.Desired(agouti.Capabilities{
+			"chromeOptions": map[string][]string{
+				"args": []string{
+					"headless",
+					// There is no GPU on our Ubuntu box!
+					"disable-gpu",
+
+					// Sandbox requires namespace permissions that we don't have on a container
+					"no-sandbox",
+				},
+			},
+		}))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func(done Done) {
+		// time.Sleep(20 * time.Second)
 		Expect(page.Destroy()).To(Succeed())
 		close(done)
 	})
@@ -27,8 +39,14 @@ var _ = Describe("DeploySimpleApp", func() {
 	Context("When I deploy simple app using web interface", func() {
 		BeforeEach(func() {
 			Expect(page.Navigate("http://localhost:12080/")).To(Succeed())
+
+			Eventually(page.FindByID("deploy_button")).Should(BeVisible())
 			Expect(page.FindByID("deploy_button").Click()).To(Succeed())
+
+			Eventually(page.FindByID("descriptorFile")).Should(BeVisible())
 			Expect(page.FindByID("descriptorFile").UploadFile("simple.json")).To(Succeed())
+
+			Eventually(page.FindByButton("Deploy")).Should(HaveText("Deploy"))
 			Expect(page.FindByButton("Deploy").Click()).To(Succeed())
 		})
 		It("Should have one application deployed", func() {
@@ -68,6 +86,7 @@ var _ = Describe("DeploySimpleApp", func() {
 
 				Context("When I click on the Delete button", func() {
 					BeforeEach(func() {
+						Eventually(page.FindByButton("Delete")).Should(BeVisible())
 						Expect(page.FindByButton("Delete").Click()).To(Succeed())
 					})
 
