@@ -26,12 +26,12 @@ func (a *ApplicationConfiguration) findCircularDependency(goalName string, seen 
 	for _, d := range gc.dependsOn() {
 		for _, s := range seen {
 			if s == d {
-				return fmt.Errorf("Goal %q has a circular dependency %q.", s, goalName)
+				return fmt.Errorf("Goal %q has a circular dependency %q.", goalName, s)
 			}
 		}
 	}
 
-	seen = append(seen, gc.dependsOn()...)
+	seen = append(seen, goalName)
 
 	for _, d := range gc.dependsOn() {
 		err := a.findCircularDependency(d, seen...)
